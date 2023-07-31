@@ -26,30 +26,3 @@ func TestIsChanClosable(t *testing.T) {
 		assert.True(t, result)
 	})
 }
-
-/*
-func TestSimulator_ChannelSwitch(t *testing.T) {
-	t.Run("Creating new openCh1 channel if not closable", func(t *testing.T) {
-		openCh1 := make(chan struct{})
-		closeCh1 := make(chan struct{})
-		channelSwitch(nil, openCh1, closeCh1)
-		assert.NotNil(t, openCh1)
-	})
-
-	t.Run("Creating new openCh2 channel if not closable", func(t *testing.T) {
-		openCh2 := make(chan struct{})
-		closeCh1 := make(chan struct{})
-		channelSwitch(openCh2, nil, closeCh1)
-		assert.NotNil(t, openCh2)
-	})
-
-	t.Run("Closing closeCh1 channel if closable", func(t *testing.T) {
-		openCh1 := make(chan struct{})
-		closeCh1 := make(chan struct{})
-		close(closeCh1)
-		channelSwitch(openCh1, nil, closeCh1)
-		_, ok := <-closeCh1
-		assert.False(t, ok)
-	})
-}
-*/

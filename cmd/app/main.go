@@ -13,7 +13,7 @@ import (
 func main() {
 	gensettings := set.GeneralSettings{
 		MaxLiveTime:   time.Minute * 2,
-		UseGenManager: true,
+		UseGenManager: false,
 	}
 
 	sets := m.DriverSettings{
@@ -33,18 +33,31 @@ func main() {
 	str.Create(1)
 	str.Create(2)
 
-	sim, err := set.New(sets, str)
-	if err != nil {
-		fmt.Println(err)
-		return
+	sim, _ := set.New(sets, str)
+
+	sim.Run()
+
+	for i := 3; i < 5000; i++ {
+		str.Create(m.DataID(i))
+		sim.TagCreate(m.DataID(i), sets.Tags[m.DataID(1)])
 	}
 
-	if err = sim.Run(); err != nil {
-		fmt.Println(err)
-		return
+	for i := 5000; i < 10000; i++ {
+		str.Create(m.DataID(i))
+		sim.TagCreate(m.DataID(i), sets.Tags[m.DataID(2)])
 	}
-	if err = sim.Close(); err != nil {
-		fmt.Println(err)
-		return
+
+	time.Sleep(time.Second)
+	sim.Reset()
+	time.Sleep(time.Second * 2)
+	sim.Run()
+	//time.Sleep(time.Second)
+	sim.Close()
+
+	//time.Sleep(time.Second)
+
+	for k, v := range str.List() {
+		fmt.Println(k, v.Value)
 	}
+
 }

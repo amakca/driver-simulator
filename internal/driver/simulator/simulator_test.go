@@ -29,6 +29,11 @@ func TestSimulator_NormalWorking(t *testing.T) {
 		Settings: "rand:25ms:1.0:2.0",
 	}
 
+	settings3 := &TagSettings{
+		PollTime: 25 * time.Millisecond,
+		Settings: "rand:25ms:1.0:3.0",
+	}
+
 	str, _ := str.New()
 	str.Create(1)
 	str.Create(2)
@@ -41,12 +46,15 @@ func TestSimulator_NormalWorking(t *testing.T) {
 	assert.NoError(t, err)
 	time.Sleep(50 * time.Millisecond)
 
-	settings3 := &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:3.0",
-	}
 	str.Create(3)
+	undo, err := sim.TagCreate(3, settings3)
+	assert.NoError(t, err)
+	err = undo()
+	assert.NoError(t, err)
 	_, err = sim.TagCreate(3, settings3)
+	assert.NoError(t, err)
+
+	err = sim.TagSetValue(3, []byte{1})
 	assert.NoError(t, err)
 
 	fmt.Println("-----Running-----")
@@ -55,7 +63,7 @@ func TestSimulator_NormalWorking(t *testing.T) {
 		fmt.Println(k, v.Value)
 	}
 
-	undo, err := sim.TagDelete(3)
+	undo, err = sim.TagDelete(3)
 	fmt.Println("----Delete id3----")
 	assert.NoError(t, err)
 	time.Sleep(50 * time.Millisecond)

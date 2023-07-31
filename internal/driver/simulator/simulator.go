@@ -16,8 +16,6 @@ import (
 type simulator struct {
 	generalSettings GeneralSettings          // Общие настройки драйвера
 	tagsSettings    map[m.DataID]TagSettings // Настройки тегов
-	// listGenerators  listGenerators           // Лист соотвествия тег-генератор
-	// pollGroup       pollGroup                // Группы тегов по времени опроса
 
 	pollGroup map[time.Duration]map[m.DataID]*g.Generator
 

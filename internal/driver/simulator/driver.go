@@ -54,7 +54,9 @@ func (d *simulator) TagDelete(id m.DataID) (m.Undo, error) {
 func (d *simulator) TagSetValue(id m.DataID, value []byte) error {
 	undo, err := d.str.UpdateValue(id, value)
 	if err != nil {
-		undo()
+		if err := undo(); err != nil {
+			return err
+		}
 		return err
 	}
 	return nil
