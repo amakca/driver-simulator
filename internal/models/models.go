@@ -1,9 +1,47 @@
 package models
 
+import (
+	"time"
+
+	"github.com/pkg/errors"
+)
+
 const (
-	Uncertain QualityState = iota
-	Good
-	Bad
+	UNCERTAIN QualityState = iota
+	GOOD
+	BAD
+)
+
+const (
+	READY uint8 = iota
+	RUNNING
+	STOPPED
+	RESET
+	CLOSED
+)
+
+const (
+	MIN_POLL_TIME = time.Millisecond * 25
+	MAX_LIVE_TIME = time.Hour
+
+	DELIMITER   = ":"
+	CONFIG_FILE = "config.json"
+)
+
+var (
+	ErrDataExists   = errors.New("data with id already exists: ")
+	ErrDataNotFound = errors.New("data with id not found :")
+
+	ErrAlreadyRunning    = errors.New("program already running")
+	ErrAlreadyClosed     = errors.New("program already closed")
+	ErrAlreadyStopped    = errors.New("program already stopped")
+	ErrUnknownState      = errors.New("program state unknown")
+	ErrProgramNotReady   = errors.New("program not ready")
+	ErrNotWorking        = errors.New("program not working")
+	ErrLiveTimeLong      = errors.New("live time is too long")
+	ErrPollTimeSmall     = errors.New("poll time is too small")
+	ErrInvalidSettings   = errors.New("invalid settings format")
+	ErrPollGroupNotExist = errors.New("polltime group does not exist")
 )
 
 type DataID uint32

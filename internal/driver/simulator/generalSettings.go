@@ -3,18 +3,19 @@ package driver
 import (
 	"encoding/json"
 	"fmt"
+	m "practice/internal/models"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type GeneralSettings struct {
-	MaxLiveTime   time.Duration `json:"max-live-time"`
-	UseGenManager bool          `json:"flag-generator-manager"`
+	ProgramLiveTime time.Duration `json:"program-live-time"`
+	GenOptimization bool          `json:"use-generator-optimization"`
 }
 
 func (g *GeneralSettings) String() string {
-	return fmt.Sprint(g.MaxLiveTime, g.UseGenManager)
+	return fmt.Sprint(g.ProgramLiveTime, m.DELIMITER, g.GenOptimization)
 }
 
 func (g *GeneralSettings) BytesJSON() ([]byte, error) {
@@ -39,30 +40,33 @@ func parseGeneralJSON(input []byte) (GeneralSettings, error) {
 	if err := json.Unmarshal(input, genSet); err != nil {
 		return GeneralSettings{}, err
 	}
+	if genSet.ProgramLiveTime > m.MAX_LIVE_TIME {
+		return GeneralSettings{}, m.ErrLiveTimeLong
+	}
 	return *genSet, nil
 }
 
 func parseGeneralString(input string) (GeneralSettings, error) {
-	parts := strings.Split(input, delimiter)
+	parts := strings.Split(input, m.DELIMITER)
 	if len(parts) != 2 {
-		return GeneralSettings{}, errInvalidSettings
+		return GeneralSettings{}, m.ErrInvalidSettings
 	}
 	genSet := GeneralSettings{}
-	genSet.MaxLiveTime, _ = time.ParseDuration(parts[0])
-	if genSet.MaxLiveTime > MaxLiveTime {
-		return GeneralSettings{}, errLiveTimeLong
+	genSet.ProgramLiveTime, _ = time.ParseDuration(parts[0])
+	if genSet.ProgramLiveTime > m.MAX_LIVE_TIME {
+		return GeneralSettings{}, m.ErrLiveTimeLong
 	}
-	genSet.UseGenManager, _ = strconv.ParseBool(parts[1])
+	genSet.GenOptimization, _ = strconv.ParseBool(parts[1])
 	return genSet, nil
 }
 
 func parseGeneralStruct(v any) (GeneralSettings, error) {
 	generalSettings, ok := v.(*GeneralSettings)
 	if !ok || generalSettings == nil {
-		return GeneralSettings{}, errInvalidSettings
+		return GeneralSettings{}, m.ErrInvalidSettings
 	}
-	if generalSettings.MaxLiveTime > MaxLiveTime {
-		return GeneralSettings{}, errLiveTimeLong
+	if generalSettings.ProgramLiveTime > m.MAX_LIVE_TIME {
+		return GeneralSettings{}, m.ErrLiveTimeLong
 	}
 	return *generalSettings, nil
 }

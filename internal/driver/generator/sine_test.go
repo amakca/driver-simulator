@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestParseSineSettings(t *testing.T) {
@@ -52,10 +51,10 @@ func TestParseSineSettings(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantSample, gotSample)
 			if tt.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -89,9 +88,9 @@ func TestNewSineGen(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewSineGen(tt.input)
 			if tt.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}
 		})
 	}

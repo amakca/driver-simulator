@@ -7,7 +7,3 @@ const (
 	reset
 	closing
 )
-
-func (d *simulator) State() uint8 {
-	return d.state
-}

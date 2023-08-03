@@ -1,14 +1,19 @@
 package driver
 
 import (
+	"fmt"
 	g "practice/internal/driver/generator"
 	m "practice/internal/models"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 func (d *simulator) TagCreate(id m.DataID, s m.Settings) (m.Undo, error) {
 	if _, ok := d.tagsSettings[id]; ok {
-		return nil, errDataExist
+		return nil, errors.Wrap(m.ErrDataExists,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
 	settings, err := parseTags(s)
@@ -32,7 +37,9 @@ func (d *simulator) TagCreate(id m.DataID, s m.Settings) (m.Undo, error) {
 
 func (d *simulator) TagDelete(id m.DataID) (m.Undo, error) {
 	if _, ok := d.tagsSettings[id]; !ok {
-		return nil, errDataNotFound
+		return nil, errors.Wrap(m.ErrDataNotFound,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
 	oldData := d.tagsSettings[id]
@@ -52,7 +59,7 @@ func (d *simulator) TagDelete(id m.DataID) (m.Undo, error) {
 }
 
 func (d *simulator) TagSetValue(id m.DataID, value []byte) error {
-	undo, err := d.str.UpdateValue(id, value)
+	undo, err := d.storage.UpdateValue(id, value)
 	if err != nil {
 		if err := undo(); err != nil {
 			return err
@@ -77,14 +84,14 @@ func (d *simulator) Settings() m.DriverSettings {
 }
 
 func (d *simulator) createTag(id m.DataID, s TagSettings) error {
-	d.tagsSettings[id] = s
-
-	gen, err := d.genManager.New(s.Settings, d.generalSettings.UseGenManager)
+	gen, err := d.genManager.New(s.GenConfig, d.generalSettings.GenOptimization)
 	if err != nil {
 		return err
 	}
 
 	d.rwmu.Lock()
+	d.tagsSettings[id] = s
+
 	_, ok := d.pollGroup[s.PollTime]
 	if !ok {
 		d.pollGroup[s.PollTime] = make(map[m.DataID]*g.Generator)
@@ -92,7 +99,9 @@ func (d *simulator) createTag(id m.DataID, s TagSettings) error {
 	d.pollGroup[s.PollTime][id] = gen
 	d.rwmu.Unlock()
 
-	gen.Start()
+	if err := gen.Start(); err != nil {
+		return err
+	}
 
 	if !ok {
 		go func(pollTime time.Duration) {
@@ -120,5 +129,11 @@ func (d *simulator) deleteTag(id m.DataID) error {
 		delete(d.tagsSettings, id)
 		return nil
 	}
-	return errDataNotFound
+	return errors.Wrap(m.ErrDataNotFound,
+		fmt.Sprint("id = ", id),
+	)
+}
+
+func (d *simulator) State() uint8 {
+	return d.state
 }

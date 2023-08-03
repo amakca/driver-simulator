@@ -3,17 +3,18 @@ package driver
 import (
 	"encoding/json"
 	"fmt"
+	m "practice/internal/models"
 	"strings"
 	"time"
 )
 
 type TagSettings struct {
-	PollTime time.Duration `json:"poll-time"`
-	Settings string        `json:"settings"`
+	PollTime  time.Duration `json:"poll-time"`
+	GenConfig string        `json:"generator-config"`
 }
 
 func (t *TagSettings) String() string {
-	return fmt.Sprint(t.PollTime, t.Settings)
+	return fmt.Sprint(t.PollTime, m.DELIMITER, t.GenConfig)
 }
 
 func (t *TagSettings) BytesJSON() ([]byte, error) {
@@ -38,28 +39,34 @@ func parseTagsJSON(input []byte) (TagSettings, error) {
 	if err := json.Unmarshal(input, tagSet); err != nil {
 		return TagSettings{}, err
 	}
+	if tagSet.PollTime < m.MIN_POLL_TIME {
+		return TagSettings{}, m.ErrPollTimeSmall
+	}
 	return *tagSet, nil
 }
 
 func parseTagsString(input string) (TagSettings, error) {
-	idx := strings.Index(input, delimiter)
+	idx := strings.Index(input, m.DELIMITER)
 	if idx < 0 {
-		return TagSettings{}, errInvalidSettings
+		return TagSettings{}, m.ErrInvalidSettings
 	}
 
 	tagSet := TagSettings{}
 	tagSet.PollTime, _ = time.ParseDuration(input[:idx])
-	if tagSet.PollTime < maxPrescaler {
-		return TagSettings{}, errPrescallerSmall
+	if tagSet.PollTime < m.MIN_POLL_TIME {
+		return TagSettings{}, m.ErrPollTimeSmall
 	}
-	tagSet.Settings = input[idx+1:]
+	tagSet.GenConfig = input[idx+1:]
 	return tagSet, nil
 }
 
 func parseTagsStruct(v any) (TagSettings, error) {
 	tagSet, ok := v.(*TagSettings)
 	if !ok || tagSet == nil {
-		return TagSettings{}, errInvalidSettings
+		return TagSettings{}, m.ErrInvalidSettings
+	}
+	if tagSet.PollTime < m.MIN_POLL_TIME {
+		return TagSettings{}, m.ErrPollTimeSmall
 	}
 	return *tagSet, nil
 }

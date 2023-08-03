@@ -2,6 +2,7 @@ package generator
 
 import (
 	"math"
+	m "practice/internal/models"
 	"strconv"
 	"strings"
 	"time"
@@ -13,16 +14,16 @@ type sineSettings struct {
 }
 
 func parseSineSettings(cfg string) (sineSettings, time.Duration, error) {
-	parts := strings.Split(cfg, delimiter)
+	parts := strings.Split(cfg, m.DELIMITER)
 	if len(parts) != 3 {
-		return sineSettings{}, 0, errInvalidSettings
+		return sineSettings{}, 0, ErrInvalidSettings
 	}
 
 	settings := sineSettings{}
 	sampleRate, _ := time.ParseDuration(parts[0])
 
-	if sampleRate < maxPrescaler {
-		return sineSettings{}, 0, errPrescallerSmall
+	if sampleRate < MAX_SAMPLE_RATE {
+		return sineSettings{}, 0, ErrSampleRateSmall
 	}
 	settings.amplitude, _ = strconv.ParseFloat(parts[1], 64)
 	settings.frequency, _ = strconv.ParseFloat(parts[2], 64)

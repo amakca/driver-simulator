@@ -1,4 +1,4 @@
-package driver
+package utils
 
 func IsChanClosable(ch chan struct{}) bool {
 	if ch == nil {

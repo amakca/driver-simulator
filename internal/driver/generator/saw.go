@@ -1,6 +1,7 @@
 package generator
 
 import (
+	m "practice/internal/models"
 	"strconv"
 	"strings"
 	"time"
@@ -12,15 +13,15 @@ type sawSettings struct {
 }
 
 func parseSawSettings(cfg string) (sawSettings, time.Duration, error) {
-	parts := strings.Split(cfg, delimiter)
+	parts := strings.Split(cfg, m.DELIMITER)
 	if len(parts) != 3 {
-		return sawSettings{}, 0, errInvalidSettings
+		return sawSettings{}, 0, ErrInvalidSettings
 	}
 
 	settings := sawSettings{}
 	sampleRate, _ := time.ParseDuration(parts[0])
-	if sampleRate < maxPrescaler {
-		return sawSettings{}, 0, errPrescallerSmall
+	if sampleRate < MAX_SAMPLE_RATE {
+		return sawSettings{}, 0, ErrSampleRateSmall
 	}
 	settings.amplitude, _ = strconv.ParseFloat(parts[1], 64)
 	settings.frequency, _ = strconv.ParseFloat(parts[2], 64)

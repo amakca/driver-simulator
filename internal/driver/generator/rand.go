@@ -2,6 +2,7 @@ package generator
 
 import (
 	"math/rand"
+	m "practice/internal/models"
 	"strconv"
 	"strings"
 	"time"
@@ -13,15 +14,15 @@ type randSettings struct {
 }
 
 func parseRandSettings(cfg string) (randSettings, time.Duration, error) {
-	parts := strings.Split(cfg, delimiter)
+	parts := strings.Split(cfg, m.DELIMITER)
 	if len(parts) != 3 {
-		return randSettings{}, 0, errInvalidSettings
+		return randSettings{}, 0, ErrInvalidSettings
 	}
 
 	settings := randSettings{}
 	sampleRate, _ := time.ParseDuration(parts[0])
-	if sampleRate < maxPrescaler {
-		return randSettings{}, 0, errPrescallerSmall
+	if sampleRate < MAX_SAMPLE_RATE {
+		return randSettings{}, 0, ErrSampleRateSmall
 	}
 	settings.high, _ = strconv.ParseFloat(parts[1], 64)
 	settings.low, _ = strconv.ParseFloat(parts[2], 64)

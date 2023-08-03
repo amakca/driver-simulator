@@ -3,6 +3,7 @@ package generator
 import (
 	"encoding/binary"
 	"math"
+	u "practice/internal/utils"
 	"time"
 )
 
@@ -44,9 +45,11 @@ func (g *Generator) Start() error {
 func (g *Generator) Stop() error {
 	switch g.subs {
 	case 0:
-		return errGenAlreadyStop
+		return ErrGenAlreadyStop
 	case 1:
-		close(g.done)
+		if u.IsChanClosable(g.done) {
+			close(g.done)
+		}
 		g.subs = 0
 		return nil
 	default:
@@ -63,6 +66,6 @@ func (g *Generator) ValueBytes() []byte {
 	return bytes
 }
 
-func (g *Generator) ValueFloat32() float32 {
+func (g *Generator) Value() float32 {
 	return g.value
 }

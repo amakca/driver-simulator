@@ -2,21 +2,22 @@ package driver
 
 import (
 	m "practice/internal/models"
+	u "practice/internal/utils"
 	"time"
 )
 
 func (d *simulator) Run() error {
 	switch d.State() {
 	case running:
-		return errAlreadyRunning
+		return m.ErrAlreadyRunning
 	case closing:
-		return errAlreadyClosed
+		return m.ErrAlreadyClosed
 	case stopping:
 		d.runSignal()
 		d.state = running
 		return nil
 	case reset:
-		return errProgramNotReady
+		return m.ErrProgramNotReady
 	case ready:
 		d.runSignal()
 		d.state = running
@@ -27,33 +28,33 @@ func (d *simulator) Run() error {
 		}
 		return nil
 	default:
-		return errUnknownState
+		return m.ErrUnknownState
 	}
 }
 
 func (d *simulator) Stop() error {
 	switch d.State() {
 	case stopping:
-		return errAlreadyStopped
+		return m.ErrAlreadyStopped
 	case closing:
-		return errAlreadyClosed
+		return m.ErrAlreadyClosed
 	case ready, reset:
-		return errNotWorking
+		return m.ErrNotWorking
 	case running:
 		d.stopSignal()
 		d.state = stopping
 		for id := range d.tagsSettings {
-			d.str.UpdateQuality(id, m.Bad)
+			d.storage.UpdateQuality(id, m.BAD)
 		}
 		return nil
 	default:
-		return errUnknownState
+		return m.ErrUnknownState
 	}
 }
 
 func (d *simulator) Close() error {
 	if d.State() == closing {
-		return errAlreadyClosed
+		return m.ErrAlreadyClosed
 	}
 	if err := d.dumpConfig(); err != nil {
 		return err
@@ -68,9 +69,9 @@ func (d *simulator) Close() error {
 func (d *simulator) Reset() error {
 	switch d.State() {
 	case closing:
-		return errAlreadyClosed
+		return m.ErrAlreadyClosed
 	case reset:
-		return errNotWorking
+		return m.ErrNotWorking
 	case stopping, running, ready:
 		d.closeSignal()
 		d.state = reset
@@ -80,51 +81,51 @@ func (d *simulator) Reset() error {
 		d.state = ready
 		return nil
 	default:
-		return errUnknownState
+		return m.ErrUnknownState
 	}
 }
 
 func (d *simulator) runSignal() {
-	if !IsChanClosable(d.close) {
+	if !u.IsChanClosable(d.close) {
 		d.close = make(chan struct{})
 	}
-	if !IsChanClosable(d.stop) {
+	if !u.IsChanClosable(d.stop) {
 		d.stop = make(chan struct{})
 	}
-	if IsChanClosable(d.start) {
+	if u.IsChanClosable(d.start) {
 		close(d.start)
 	}
 }
 
 func (d *simulator) stopSignal() {
-	if !IsChanClosable(d.close) {
+	if !u.IsChanClosable(d.close) {
 		d.close = make(chan struct{})
 	}
-	if !IsChanClosable(d.start) {
+	if !u.IsChanClosable(d.start) {
 		d.start = make(chan struct{})
 	}
-	if IsChanClosable(d.stop) {
+	if u.IsChanClosable(d.stop) {
 		close(d.stop)
 	}
 }
 
 func (d *simulator) closeSignal() {
-	if !IsChanClosable(d.start) {
+	if !u.IsChanClosable(d.start) {
 		d.start = make(chan struct{})
 	}
-	if !IsChanClosable(d.stop) {
+	if !u.IsChanClosable(d.stop) {
 		d.stop = make(chan struct{})
 	}
-	if IsChanClosable(d.close) {
+	if u.IsChanClosable(d.close) {
 		close(d.close)
 	}
 }
 
 func (d *simulator) shutdown() {
-	if IsChanClosable(d.start) {
+	if u.IsChanClosable(d.start) {
 		close(d.start)
 	}
-	if IsChanClosable(d.stop) {
+	if u.IsChanClosable(d.stop) {
 		close(d.stop)
 	}
 }
