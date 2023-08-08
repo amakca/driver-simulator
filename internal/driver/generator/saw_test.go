@@ -11,35 +11,35 @@ func TestParseSawSettings(t *testing.T) {
 	tests := []struct {
 		name       string
 		input      string
-		want       sawSettings
+		want       saw
 		wantSample time.Duration
 		wantErr    bool
 	}{
 		{
 			name:       "valid",
 			input:      "1s:1.0:2.0",
-			want:       sawSettings{1.0, 2.0},
+			want:       saw{1.0, 2.0},
 			wantSample: 1 * time.Second,
 			wantErr:    false,
 		},
 		{
 			name:       "not enough parts",
 			input:      "50ms:1.0",
-			want:       sawSettings{},
+			want:       saw{},
 			wantSample: 0 * time.Second,
 			wantErr:    true,
 		},
 		{
 			name:       "sampleRate too small",
 			input:      "1ms:1.0:2.0",
-			want:       sawSettings{},
+			want:       saw{},
 			wantSample: 0 * time.Second,
 			wantErr:    true,
 		},
 		{
 			name:       "invalid delimiter",
 			input:      "1s;1.0;2.0",
-			want:       sawSettings{},
+			want:       saw{},
 			wantSample: 0 * time.Second,
 			wantErr:    true,
 		},
@@ -47,7 +47,7 @@ func TestParseSawSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotSample, err := parseSawSettings(tt.input)
+			got, gotSample, err := parseSaw(tt.input)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantSample, gotSample)
 			if tt.wantErr {
@@ -64,13 +64,13 @@ func TestNewSawGen(t *testing.T) {
 	tests := []struct {
 		name         string
 		input        string
-		wantSettings sawSettings
+		wantSettings saw
 		wantErr      bool
 	}{
 		{
 			name:  "valid",
 			input: "1s:1.0:2.0",
-			wantSettings: sawSettings{
+			wantSettings: saw{
 				amplitude: 1.0,
 				frequency: 2.0,
 			},
@@ -79,7 +79,7 @@ func TestNewSawGen(t *testing.T) {
 		{
 			name:         "invalid input",
 			input:        "foo:2.0:1s",
-			wantSettings: sawSettings{},
+			wantSettings: saw{},
 			wantErr:      true,
 		},
 	}

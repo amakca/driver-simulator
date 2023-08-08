@@ -10,108 +10,136 @@ import (
 )
 
 func TestSimulator(t *testing.T) {
-	gensettings := GeneralSettings{
+	generalSettings := GeneralSettings{
 		ProgramLiveTime: time.Hour * 5,
-		GenOptimization: false,
+		GenOptimization: true,
 	}
 
-	set := m.DriverSettings{
-		General: &gensettings,
+	driverSettings := m.DriverSettings{
+		General: &generalSettings,
 		Tags:    map[m.DataID]m.Formatter{},
 	}
-	set.Tags[m.DataID(1)] = &TagSettings{
-		PollTime:  25 * time.Millisecond,
-		GenConfig: "rand:25ms:1.0:2.0",
+	driverSettings.Tags[m.DataID(1)] = &TagSettings{
+		PollTime:  30 * time.Millisecond,
+		GenConfig: "rand:45ms:1.0:2.0",
 	}
-	set.Tags[m.DataID(2)] = &TagSettings{
-		PollTime:  25 * time.Millisecond,
-		GenConfig: "rand:25ms:1.0:2.0",
+	driverSettings.Tags[m.DataID(2)] = &TagSettings{
+		PollTime:  30 * time.Millisecond,
+		GenConfig: "rand:35ms:1.0:3.0",
 	}
-	set.Tags[m.DataID(4)] = &TagSettings{
+	driverSettings.Tags[m.DataID(3)] = &TagSettings{
 		PollTime:  35 * time.Millisecond,
-		GenConfig: "rand:25ms:2.0:3.0",
+		GenConfig: "rand:45ms:1.0:2.0",
 	}
 
-	settings3 := &TagSettings{
-		PollTime:  25 * time.Millisecond,
-		GenConfig: "rand:30ms:1.0:3.0",
-	}
-
-	str, _ := str.New()
-	str.Create(1)
-	str.Create(2)
-	str.Create(3)
-	str.Create(4)
-
-	sim, err := New(set, str)
-	assert.ErrorIs(t, err, m.ErrLiveTimeLong)
-	gensettings.ProgramLiveTime = time.Minute * 5
-
-	sim, err = New(set, str)
+	storage, err := str.New()
 	assert.NoError(t, err)
-	assert.NotNil(t, sim)
 
-	t.Run("Correct working", func(t *testing.T) {
-		err = sim.Run()
-		assert.NoError(t, err)
+	storage.Create(1)
+	storage.Create(2)
+	storage.Create(3)
 
-		time.Sleep(50 * time.Millisecond)
+	simulator, err := New(driverSettings, storage)
+	assert.ErrorIs(t, err, m.ErrLiveTimeLong)
 
-		undo, err := sim.TagCreate(3, settings3)
-		assert.NoError(t, err)
-		time.Sleep(50 * time.Millisecond)
-		err = undo()
-		assert.NoError(t, err)
+	generalSettings.ProgramLiveTime = time.Minute * 5
+	simulator, err = New(driverSettings, storage)
+	assert.NoError(t, err)
 
-		err = sim.TagSetValue(2, []byte{1})
-		assert.NoError(t, err)
+	t.Run("New", func(t *testing.T) {
+		assert.NotNil(t, simulator.pollGroup)
+		assert.NotNil(t, simulator.genManager)
+		assert.NotNil(t, simulator.start)
+		assert.Equal(t, m.READY, simulator.state)
+		assert.Equal(t, generalSettings, simulator.generalSettings)
+		assert.Equal(t, storage, simulator.storage)
 
-		_, err = sim.TagDelete(4)
-		assert.NoError(t, err)
+		for k := range driverSettings.Tags {
+			dr := driverSettings.Tags[k]
+			sim := simulator.tagsSettings[k]
+			assert.Equal(t, *dr.(*TagSettings), sim)
+		}
 
-		undo, err = sim.TagDelete(2)
-		assert.NoError(t, err)
-		err = undo()
-		assert.NoError(t, err)
-
-		err = sim.Stop()
-		assert.NoError(t, err)
-		time.Sleep(50 * time.Millisecond)
-		err = sim.Run()
-		assert.NoError(t, err)
-		err = sim.Reset()
-		assert.NoError(t, err)
-		err = sim.Run()
-		assert.NoError(t, err)
-		err = sim.Reset()
-		assert.NoError(t, err)
+		assert.Equal(t, simulator.pollGroup[30*time.Millisecond][1],
+			simulator.pollGroup[35*time.Millisecond][3],
+		)
+		assert.NotEqual(t, simulator.pollGroup[30*time.Millisecond][1],
+			simulator.pollGroup[30*time.Millisecond][2],
+		)
 	})
 
-	t.Run("Incorrect working", func(t *testing.T) {
-		_, err = sim.TagCreate(2, set.Tags[2])
+	t.Run("TagCreate", func(t *testing.T) {
+		storage.Create(4)
+		settings := &TagSettings{
+			PollTime:  30 * time.Millisecond,
+			GenConfig: "rand:30ms:1.0:3.0",
+		}
+
+		_, err = simulator.TagCreate(m.DataID(2), driverSettings.Tags[m.DataID(2)])
 		assert.ErrorIs(t, err, m.ErrDataExists)
 
-		_, err = sim.TagDelete(3)
+		undo, err := simulator.TagCreate(m.DataID(4), settings)
+		assert.NoError(t, err)
+		assert.Contains(t, simulator.tagsSettings, m.DataID(4))
+		assert.Contains(t, simulator.pollGroup[settings.PollTime], m.DataID(4))
+
+		assert.NoError(t, undo())
+		assert.NotContains(t, simulator.tagsSettings, m.DataID(4))
+		assert.NotContains(t, simulator.pollGroup[settings.PollTime], m.DataID(4))
+	})
+
+	t.Run("TagDelete", func(t *testing.T) {
+		_, err = simulator.TagDelete(m.DataID(4))
 		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
-		sim.Run()
-		err = sim.Run()
-		assert.ErrorIs(t, err, m.ErrAlreadyRunning)
+		undo, err := simulator.TagDelete(m.DataID(2))
+		assert.NoError(t, err)
+		assert.NotContains(t, simulator.tagsSettings, m.DataID(2))
+		assert.NotContains(t, simulator.pollGroup[30*time.Millisecond], m.DataID(2))
 
-		sim.Stop()
-		err = sim.Stop()
-		assert.ErrorIs(t, err, m.ErrAlreadyStopped)
+		assert.NoError(t, undo())
+		assert.Contains(t, simulator.tagsSettings, m.DataID(2))
+		assert.Contains(t, simulator.pollGroup[30*time.Millisecond], m.DataID(2))
 
-		sim.Reset()
-		err = sim.Stop()
-		assert.ErrorIs(t, err, m.ErrNotWorking)
+	})
 
-		sim.Close()
-		err = sim.Close()
-		assert.ErrorIs(t, err, m.ErrAlreadyClosed)
+	t.Run("TagSetValue", func(t *testing.T) {
+		assert.NoError(t, simulator.TagSetValue(2, []byte{0, 0, 0, 40}))
+		assert.Equal(t, []byte{0, 0, 0, 40},
+			simulator.pollGroup[30*time.Millisecond][2].ValueBytes(),
+		)
 
-		err = sim.Run()
-		assert.ErrorIs(t, err, m.ErrAlreadyClosed)
+		assert.ErrorIs(t, simulator.TagSetValue(5, []byte{0, 0, 0, 40}),
+			m.ErrDataNotFound)
+	})
+
+	t.Run("Settings", func(t *testing.T) {
+		listSettings := simulator.Settings()
+		assert.Equal(t, driverSettings, listSettings)
+	})
+
+	t.Run("Service", func(t *testing.T) {
+		assert.ErrorIs(t, simulator.Stop(), m.ErrNotWorking)
+
+		assert.NoError(t, simulator.Run())
+		assert.ErrorIs(t, simulator.Run(), m.ErrAlreadyRunning)
+		assert.Equal(t, m.RUNNING, simulator.state)
+
+		assert.NoError(t, simulator.Stop())
+		assert.ErrorIs(t, simulator.Stop(), m.ErrAlreadyStopped)
+		assert.Equal(t, m.STOPPED, simulator.state)
+
+		assert.NoError(t, simulator.Reset())
+		assert.Equal(t, m.READY, simulator.state)
+
+		assert.NoError(t, simulator.Run())
+		assert.Equal(t, m.RUNNING, simulator.state)
+
+		assert.NoError(t, simulator.Close())
+		assert.ErrorIs(t, simulator.Close(), m.ErrProgramClosed)
+		assert.ErrorIs(t, simulator.Stop(), m.ErrProgramClosed)
+		assert.ErrorIs(t, simulator.Run(), m.ErrProgramClosed)
+		assert.Equal(t, m.CLOSED, simulator.state)
 	})
 
 }

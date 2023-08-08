@@ -8,41 +8,53 @@ import (
 	"time"
 )
 
-type randSettings struct {
+type random struct {
 	high float64
 	low  float64
 }
 
-func parseRandSettings(cfg string) (randSettings, time.Duration, error) {
+func parseRandom(cfg string) (random, time.Duration, error) {
 	parts := strings.Split(cfg, m.DELIMITER)
 	if len(parts) != 3 {
-		return randSettings{}, 0, ErrInvalidSettings
+		return random{}, 0, ErrInvalidSettings
 	}
 
-	settings := randSettings{}
-	sampleRate, _ := time.ParseDuration(parts[0])
+	valuer := random{}
+	sampleRate, err := time.ParseDuration(parts[0])
+	if err != nil {
+		return random{}, 0, err
+	}
+
 	if sampleRate < MAX_SAMPLE_RATE {
-		return randSettings{}, 0, ErrSampleRateSmall
+		return random{}, 0, ErrSampleRateSmall
 	}
-	settings.high, _ = strconv.ParseFloat(parts[1], 64)
-	settings.low, _ = strconv.ParseFloat(parts[2], 64)
 
-	return settings, sampleRate, nil
+	valuer.high, err = strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return random{}, 0, err
+	}
+
+	valuer.low, err = strconv.ParseFloat(parts[2], 64)
+	if err != nil {
+		return random{}, 0, err
+	}
+
+	return valuer, sampleRate, nil
 }
 
 // Конструктор рандом-генератора
 func NewRandGen(cfg string) (*Generator, error) {
-	settings, sampleRate, err := parseRandSettings(cfg)
+	valuer, sampleRate, err := parseRandom(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Generator{
-		valuer:     &settings,
+		valuer:     &valuer,
 		sampleRate: sampleRate,
 	}, nil
 }
 
-func (s *randSettings) value() float32 {
+func (s *random) value() float32 {
 	return float32((s.low) + rand.Float64()*(s.high-s.low))
 }

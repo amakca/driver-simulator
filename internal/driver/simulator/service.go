@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"log"
 	m "practice/internal/models"
 	u "practice/internal/utils"
 	"time"
@@ -8,22 +9,22 @@ import (
 
 func (d *simulator) Run() error {
 	switch d.State() {
-	case running:
+	case m.RUNNING:
 		return m.ErrAlreadyRunning
-	case closing:
-		return m.ErrAlreadyClosed
-	case stopping:
+	case m.CLOSED:
+		return m.ErrProgramClosed
+	case m.STOPPED:
 		d.runSignal()
-		d.state = running
+		d.state = m.RUNNING
 		return nil
-	case reset:
-		return m.ErrProgramNotReady
-	case ready:
+	case m.READY:
 		d.runSignal()
-		d.state = running
+		d.state = m.RUNNING
 		for pollTime := range d.pollGroup {
 			go func(pollTime time.Duration) {
-				d.polling(pollTime)
+				if err := d.polling(pollTime); err != nil {
+					log.Print(err)
+				}
 			}(pollTime)
 		}
 		return nil
@@ -34,18 +35,28 @@ func (d *simulator) Run() error {
 
 func (d *simulator) Stop() error {
 	switch d.State() {
-	case stopping:
+	case m.STOPPED:
 		return m.ErrAlreadyStopped
-	case closing:
-		return m.ErrAlreadyClosed
-	case ready, reset:
+	case m.CLOSED:
+		return m.ErrProgramClosed
+	case m.READY:
 		return m.ErrNotWorking
-	case running:
+	case m.RUNNING:
 		d.stopSignal()
-		d.state = stopping
+		d.state = m.STOPPED
+
 		for id := range d.tagsSettings {
-			d.storage.UpdateQuality(id, m.BAD)
+			if undo, err := d.storage.UpdateQuality(id, m.QUALITY_BAD); err != nil {
+				if undo != nil {
+					if err = undo(); err != nil {
+						log.Print(err)
+					}
+					return err
+				}
+				return err
+			}
 		}
+
 		return nil
 	default:
 		return m.ErrUnknownState
@@ -53,32 +64,27 @@ func (d *simulator) Stop() error {
 }
 
 func (d *simulator) Close() error {
-	if d.State() == closing {
-		return m.ErrAlreadyClosed
+	if d.State() == m.CLOSED {
+		return m.ErrProgramClosed
 	}
 	if err := d.dumpConfig(); err != nil {
 		return err
 	}
 	d.closeSignal()
 
-	d.state = closing
+	d.state = m.CLOSED
 	d.shutdown()
 	return nil
 }
 
 func (d *simulator) Reset() error {
 	switch d.State() {
-	case closing:
-		return m.ErrAlreadyClosed
-	case reset:
-		return m.ErrNotWorking
-	case stopping, running, ready:
+	case m.STOPPED, m.RUNNING, m.READY, m.CLOSED:
 		d.closeSignal()
-		d.state = reset
 		if err := d.init(d.Settings()); err != nil {
 			return err
 		}
-		d.state = ready
+		d.state = m.READY
 		return nil
 	default:
 		return m.ErrUnknownState
@@ -86,9 +92,6 @@ func (d *simulator) Reset() error {
 }
 
 func (d *simulator) runSignal() {
-	if !u.IsChanClosable(d.close) {
-		d.close = make(chan struct{})
-	}
 	if !u.IsChanClosable(d.stop) {
 		d.stop = make(chan struct{})
 	}
@@ -98,9 +101,6 @@ func (d *simulator) runSignal() {
 }
 
 func (d *simulator) stopSignal() {
-	if !u.IsChanClosable(d.close) {
-		d.close = make(chan struct{})
-	}
 	if !u.IsChanClosable(d.start) {
 		d.start = make(chan struct{})
 	}

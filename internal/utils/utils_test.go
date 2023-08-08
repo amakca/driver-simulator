@@ -8,36 +8,31 @@ import (
 )
 
 func TestIsChanClosable(t *testing.T) {
-	t.Run("Nil channel", func(t *testing.T) {
-		var ch chan struct{}
-		result := IsChanClosable(ch)
-		assert.False(t, result)
-	})
+	var ch chan struct{}
 
-	t.Run("Closed channel", func(t *testing.T) {
-		ch := make(chan struct{})
-		close(ch)
-		result := IsChanClosable(ch)
-		assert.False(t, result)
-	})
+	// return false
+	assert.False(t, IsChanClosable(ch))
 
-	t.Run("Open channel", func(t *testing.T) {
-		ch := make(chan struct{})
-		go func() {
-			ch <- struct{}{}
-		}()
-		time.Sleep(time.Millisecond)
-		result := IsChanClosable(ch)
-		assert.True(t, result)
-	})
+	// default -> return true
+	ch = make(chan struct{})
+	assert.True(t, IsChanClosable(ch))
 
-	t.Run("Busy channel", func(t *testing.T) {
-		ch := make(chan struct{})
-		go func() {
-			<-ch
-		}()
-		time.Sleep(time.Millisecond)
-		result := IsChanClosable(ch)
-		assert.True(t, result)
-	})
+	// case -> return ok(true)
+	go func() {
+		ch <- struct{}{}
+	}()
+	time.Sleep(time.Millisecond)
+	assert.True(t, IsChanClosable(ch))
+
+	// default -> return true
+	go func() {
+		<-ch
+	}()
+	time.Sleep(time.Millisecond)
+	assert.True(t, IsChanClosable(ch))
+	ch <- struct{}{}
+
+	// case -> return ok(false)
+	close(ch)
+	assert.False(t, IsChanClosable(ch))
 }

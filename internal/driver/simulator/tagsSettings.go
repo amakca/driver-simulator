@@ -46,16 +46,22 @@ func parseTagsJSON(input []byte) (TagSettings, error) {
 }
 
 func parseTagsString(input string) (TagSettings, error) {
+	var err error
+
 	idx := strings.Index(input, m.DELIMITER)
 	if idx < 0 {
 		return TagSettings{}, m.ErrInvalidSettings
 	}
 
 	tagSet := TagSettings{}
-	tagSet.PollTime, _ = time.ParseDuration(input[:idx])
+	tagSet.PollTime, err = time.ParseDuration(input[:idx])
+	if err != nil {
+		return TagSettings{}, err
+	}
 	if tagSet.PollTime < m.MIN_POLL_TIME {
 		return TagSettings{}, m.ErrPollTimeSmall
 	}
+
 	tagSet.GenConfig = input[idx+1:]
 	return tagSet, nil
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	g "practice/internal/driver/generator"
 	m "practice/internal/models"
+	u "practice/internal/utils"
 	"sync"
 	"time"
 )
@@ -37,7 +38,7 @@ func New(settings m.DriverSettings, storage m.ValueUpdater) (*simulator, error) 
 		genManager:      genManager,
 		storage:         storage,
 		start:           make(chan struct{}),
-		state:           ready,
+		state:           m.READY,
 	}
 
 	if err := s.init(settings); err != nil {
@@ -60,6 +61,10 @@ func (d *simulator) init(set m.DriverSettings) error {
 
 	if err := d.controlLiveTime(); err != nil {
 		return err
+	}
+
+	if !u.IsChanClosable(d.close) {
+		d.close = make(chan struct{})
 	}
 
 	return nil
@@ -88,8 +93,6 @@ func (d *simulator) dumpConfig() error {
 	}
 	defer file.Close()
 
-	if err := json.NewEncoder(file).Encode(settings); err != nil {
-		return err
-	}
-	return nil
+	err = json.NewEncoder(file).Encode(settings)
+	return err
 }

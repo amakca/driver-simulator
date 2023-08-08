@@ -30,24 +30,20 @@ func (d *simulator) addGenerator(id m.DataID, tagConfig TagSettings) error {
 	}
 
 	d.rwmu.Lock()
+	defer d.rwmu.Unlock()
+
 	if _, ok := d.pollGroup[tagConfig.PollTime]; !ok {
 		d.pollGroup[tagConfig.PollTime] = make(map[m.DataID]*g.Generator)
 	}
 	d.pollGroup[tagConfig.PollTime][id] = gen
-	d.rwmu.Unlock()
 
 	return nil
 }
 
 func (d *simulator) polling(pollTime time.Duration) error {
-	d.rwmu.RLock()
-	for _, gen := range d.pollGroup[pollTime] {
-		if err := gen.Start(); err != nil {
-			d.rwmu.RUnlock()
-			return err
-		}
+	if err := d.caseStartGen(pollTime); err != nil {
+		return err
 	}
-	d.rwmu.RUnlock()
 
 	ticker := time.NewTicker(pollTime)
 	for {
@@ -86,11 +82,23 @@ func (d *simulator) caseStopGen(pollTime time.Duration) {
 
 }
 
+func (d *simulator) caseStartGen(pollTime time.Duration) error {
+	d.rwmu.RLock()
+	defer d.rwmu.RUnlock()
+
+	for _, gen := range d.pollGroup[pollTime] {
+		if err := gen.Start(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (d *simulator) updateValue(pollTime time.Duration) error {
 	d.rwmu.RLock()
+	defer d.rwmu.RUnlock()
 
 	if _, ok := d.pollGroup[pollTime]; !ok {
-		d.rwmu.RUnlock()
 		return m.ErrPollGroupNotExist
 	}
 
@@ -98,11 +106,9 @@ func (d *simulator) updateValue(pollTime time.Duration) error {
 		val := gen.ValueBytes()
 		_, err := d.storage.UpdateValue(m.DataID(id), val)
 		if err != nil {
-			d.rwmu.RUnlock()
 			return err
 		}
 	}
 
-	d.rwmu.RUnlock()
 	return nil
 }

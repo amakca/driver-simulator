@@ -39,7 +39,7 @@ func (s *TagStorage) Create(id m.DataID) (m.Undo, error) {
 	}
 
 	s.data[id] = &m.Datapoint{
-		Quality: m.UNCERTAIN,
+		Quality: m.QUALITY_UNCERTAIN,
 	}
 
 	return undo, nil
@@ -141,7 +141,6 @@ func (s *TagStorage) UpdateValue(id m.DataID, value []byte) (m.Undo, error) {
 
 	s.data[id].Value = value
 	s.data[id].Timestamp = time.Now().Unix()
-	s.data[id].Quality = m.GOOD
 
 	return undo, nil
 }

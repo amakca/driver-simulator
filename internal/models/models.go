@@ -7,16 +7,15 @@ import (
 )
 
 const (
-	UNCERTAIN QualityState = iota
-	GOOD
-	BAD
+	QUALITY_UNCERTAIN QualityState = iota
+	QUALITY_GOOD
+	QUALITY_BAD
 )
 
 const (
 	READY uint8 = iota
 	RUNNING
 	STOPPED
-	RESET
 	CLOSED
 )
 
@@ -33,7 +32,7 @@ var (
 	ErrDataNotFound = errors.New("data with id not found :")
 
 	ErrAlreadyRunning    = errors.New("program already running")
-	ErrAlreadyClosed     = errors.New("program already closed")
+	ErrProgramClosed     = errors.New("program closed")
 	ErrAlreadyStopped    = errors.New("program already stopped")
 	ErrUnknownState      = errors.New("program state unknown")
 	ErrProgramNotReady   = errors.New("program not ready")
@@ -42,6 +41,7 @@ var (
 	ErrPollTimeSmall     = errors.New("poll time is too small")
 	ErrInvalidSettings   = errors.New("invalid settings format")
 	ErrPollGroupNotExist = errors.New("polltime group does not exist")
+	ErrCannotCloseChan   = errors.New("channel cannot be closed")
 )
 
 type DataID uint32

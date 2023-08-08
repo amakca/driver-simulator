@@ -1,8 +1,10 @@
 package generator
 
 import (
+	"bytes"
 	"encoding/binary"
 	"math"
+	m "practice/internal/models"
 	u "practice/internal/utils"
 	"time"
 )
@@ -47,9 +49,10 @@ func (g *Generator) Stop() error {
 	case 0:
 		return ErrGenAlreadyStop
 	case 1:
-		if u.IsChanClosable(g.done) {
-			close(g.done)
+		if !u.IsChanClosable(g.done) {
+			return m.ErrCannotCloseChan
 		}
+		close(g.done)
 		g.subs = 0
 		return nil
 	default:
@@ -68,4 +71,14 @@ func (g *Generator) ValueBytes() []byte {
 
 func (g *Generator) Value() float32 {
 	return g.value
+}
+
+func (g *Generator) SetValue(value float32) {
+	g.value = value
+}
+
+func (g *Generator) SetValueBytes(value []byte) error {
+	buf := bytes.NewReader(value)
+	err := binary.Read(buf, binary.LittleEndian, &g.value)
+	return err
 }

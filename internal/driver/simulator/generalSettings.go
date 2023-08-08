@@ -37,12 +37,15 @@ func parseGeneral(v any) (GeneralSettings, error) {
 
 func parseGeneralJSON(input []byte) (GeneralSettings, error) {
 	genSet := &GeneralSettings{}
+
 	if err := json.Unmarshal(input, genSet); err != nil {
 		return GeneralSettings{}, err
 	}
+
 	if genSet.ProgramLiveTime > m.MAX_LIVE_TIME {
 		return GeneralSettings{}, m.ErrLiveTimeLong
 	}
+
 	return *genSet, nil
 }
 
@@ -51,22 +54,29 @@ func parseGeneralString(input string) (GeneralSettings, error) {
 	if len(parts) != 2 {
 		return GeneralSettings{}, m.ErrInvalidSettings
 	}
+
 	genSet := GeneralSettings{}
+
 	genSet.ProgramLiveTime, _ = time.ParseDuration(parts[0])
 	if genSet.ProgramLiveTime > m.MAX_LIVE_TIME {
 		return GeneralSettings{}, m.ErrLiveTimeLong
 	}
+
 	genSet.GenOptimization, _ = strconv.ParseBool(parts[1])
+
 	return genSet, nil
 }
 
 func parseGeneralStruct(v any) (GeneralSettings, error) {
 	generalSettings, ok := v.(*GeneralSettings)
+
 	if !ok || generalSettings == nil {
 		return GeneralSettings{}, m.ErrInvalidSettings
 	}
+
 	if generalSettings.ProgramLiveTime > m.MAX_LIVE_TIME {
 		return GeneralSettings{}, m.ErrLiveTimeLong
 	}
+
 	return *generalSettings, nil
 }

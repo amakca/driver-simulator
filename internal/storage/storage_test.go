@@ -11,20 +11,21 @@ import (
 func TestTagStorage(t *testing.T) {
 	storage, err := New()
 	assert.NoError(t, err)
+	assert.NotNil(t, storage.data)
+
 	id := m.DataID(1)
 
 	t.Run("Create", func(t *testing.T) {
 		undo, err := storage.Create(id)
 		assert.NoError(t, err)
 		assert.NotNil(t, undo)
-		assert.Equal(t, 1, len(storage.data))
+		assert.NotNil(t, storage.data[id])
 
 		_, err = storage.Create(id)
 		assert.ErrorIs(t, err, m.ErrDataExists)
 
-		err = undo()
-		assert.NoError(t, err)
-		assert.Equal(t, 0, len(storage.data))
+		assert.NoError(t, undo())
+		assert.Nil(t, storage.data[id])
 	})
 
 	t.Run("Read", func(t *testing.T) {
@@ -35,7 +36,7 @@ func TestTagStorage(t *testing.T) {
 		datapoint = m.Datapoint{
 			Value:     []byte{1},
 			Timestamp: 2,
-			Quality:   m.GOOD,
+			Quality:   m.QUALITY_GOOD,
 		}
 		storage.data[id] = &datapoint
 
@@ -48,7 +49,7 @@ func TestTagStorage(t *testing.T) {
 		datapoint := &m.Datapoint{
 			Value:     []byte{1},
 			Timestamp: 2,
-			Quality:   m.GOOD,
+			Quality:   m.QUALITY_GOOD,
 		}
 
 		undo, err := storage.Update(11, *datapoint)
@@ -61,8 +62,7 @@ func TestTagStorage(t *testing.T) {
 		assert.NotNil(t, undo)
 		assert.Equal(t, storage.data[id], datapoint)
 
-		err = undo()
-		assert.NoError(t, err)
+		assert.NoError(t, undo())
 		assert.Equal(t, storage.data[id], &m.Datapoint{})
 	})
 
@@ -75,11 +75,10 @@ func TestTagStorage(t *testing.T) {
 		undo, err := storage.Delete(id)
 		assert.NoError(t, err)
 		assert.NotNil(t, undo)
-		assert.Equal(t, 0, len(storage.data))
+		assert.Nil(t, storage.data[id])
 
-		err = undo()
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(storage.data))
+		assert.NoError(t, undo())
+		assert.NotNil(t, storage.data[id])
 	})
 
 	t.Run("UpdateValue", func(t *testing.T) {
@@ -92,38 +91,39 @@ func TestTagStorage(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, undo)
 		assert.Equal(t, []byte{1}, storage.data[id].Value)
+		assert.NotEqual(t, int64(0), storage.data[id].Timestamp)
 
-		err = undo()
-		assert.NoError(t, err)
+		assert.NoError(t, undo())
 		assert.Equal(t, []byte(nil), storage.data[id].Value)
+		assert.Equal(t, int64(0), storage.data[id].Timestamp)
+
 	})
 
 	t.Run("UpdateQuality", func(t *testing.T) {
-		_, err = storage.UpdateQuality(11, m.BAD)
+		_, err = storage.UpdateQuality(11, m.QUALITY_BAD)
 		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
 		storage.data[id] = &m.Datapoint{}
 
-		undo, err := storage.UpdateQuality(id, m.BAD)
+		undo, err := storage.UpdateQuality(id, m.QUALITY_BAD)
 		assert.NoError(t, err)
 		assert.NotNil(t, undo)
-		assert.Equal(t, m.BAD, storage.data[id].Quality)
+		assert.Equal(t, m.QUALITY_BAD, storage.data[id].Quality)
 
-		err = undo()
-		assert.NoError(t, err)
-		assert.Equal(t, m.UNCERTAIN, storage.data[id].Quality)
+		assert.NoError(t, undo())
+		assert.Equal(t, m.QUALITY_UNCERTAIN, storage.data[id].Quality)
 	})
 
 	t.Run("List", func(t *testing.T) {
 		storage.data[2] = &m.Datapoint{
 			Value:     []byte{2},
 			Timestamp: 2,
-			Quality:   m.GOOD,
+			Quality:   m.QUALITY_GOOD,
 		}
 		storage.data[3] = &m.Datapoint{
 			Value:     []byte{3},
 			Timestamp: 3,
-			Quality:   m.BAD,
+			Quality:   m.QUALITY_BAD,
 		}
 	})
 

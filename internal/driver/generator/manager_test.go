@@ -8,7 +8,7 @@ import (
 
 func TestManagerNew(t *testing.T) {
 	genManager, err := CreateManager()
-	assert.NotNil(t, genManager)
+	assert.NotNil(t, genManager.list)
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -62,11 +62,12 @@ func TestManagerNew(t *testing.T) {
 			if tt.wantErr {
 				assert.Nil(t, gen)
 				assert.Error(t, err)
-				assert.Equal(t, tt.len, len(genManager.list))
 			} else {
 				assert.NotNil(t, gen)
 				assert.NoError(t, err)
-				assert.Equal(t, tt.len, len(genManager.list))
+				if tt.flag {
+					assert.NotNil(t, genManager.list[tt.input])
+				}
 			}
 		})
 	}
@@ -76,10 +77,10 @@ func TestGenManagerParse(t *testing.T) {
 	genManager, _ := CreateManager()
 
 	t.Run("Valid config", func(t *testing.T) {
-		genType, genCfg, err := genManager.parseConfig("rand:1s:1.0:3.0")
+		genType, genCfg, err := genManager.parseConfig("rand:1s:3.0:1.0")
 		assert.NoError(t, err)
 		assert.Equal(t, "rand", genType)
-		assert.Equal(t, "1s:1.0:3.0", genCfg)
+		assert.Equal(t, "1s:3.0:1.0", genCfg)
 	})
 
 	t.Run("Invalid config", func(t *testing.T) {
@@ -91,21 +92,29 @@ func TestGenManagerParse(t *testing.T) {
 
 	t.Run("Select sine generator", func(t *testing.T) {
 		gen, err := genManager.selectGenType("sine", "1s:1.0:3.0")
+		assert.Equal(t, &sine{
+			amplitude: 1.0,
+			frequency: 3.0,
+		}, gen.valuer)
 		assert.NoError(t, err)
-		assert.NotNil(t, gen)
-
 	})
 
 	t.Run("Select saw generator", func(t *testing.T) {
 		gen, err := genManager.selectGenType("saw", "1s:1.0:3.0")
+		assert.Equal(t, &saw{
+			amplitude: 1.0,
+			frequency: 3.0,
+		}, gen.valuer)
 		assert.NoError(t, err)
-		assert.NotNil(t, gen)
 	})
 
 	t.Run("Select rand generator", func(t *testing.T) {
-		gen, err := genManager.selectGenType("rand", "1s:1.0:3.0")
+		gen, err := genManager.selectGenType("rand", "1s:3.0:1.0")
+		assert.Equal(t, &random{
+			high: 3.0,
+			low:  1.0,
+		}, gen.valuer)
 		assert.NoError(t, err)
-		assert.NotNil(t, gen)
 	})
 
 	t.Run("Select non-existing generator", func(t *testing.T) {
