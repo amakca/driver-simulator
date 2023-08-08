@@ -4,7 +4,6 @@ import (
 	"log"
 	m "practice/internal/models"
 	u "practice/internal/utils"
-	"time"
 )
 
 func (d *simulator) Run() error {
@@ -20,13 +19,14 @@ func (d *simulator) Run() error {
 	case m.READY:
 		d.runSignal()
 		d.state = m.RUNNING
+
 		for pollTime := range d.pollGroup {
-			go func(pollTime time.Duration) {
-				if err := d.polling(pollTime); err != nil {
-					log.Print(err)
-				}
-			}(pollTime)
+			if err := d.caseStartGen(pollTime); err != nil {
+				return err
+			}
+			go d.polling(pollTime)
 		}
+
 		return nil
 	default:
 		return m.ErrUnknownState
@@ -84,7 +84,6 @@ func (d *simulator) Reset() error {
 		if err := d.init(d.Settings()); err != nil {
 			return err
 		}
-		d.state = m.READY
 		return nil
 	default:
 		return m.ErrUnknownState

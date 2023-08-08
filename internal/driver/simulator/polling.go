@@ -40,10 +40,7 @@ func (d *simulator) addGenerator(id m.DataID, tagConfig TagSettings) error {
 	return nil
 }
 
-func (d *simulator) polling(pollTime time.Duration) error {
-	if err := d.caseStartGen(pollTime); err != nil {
-		return err
-	}
+func (d *simulator) polling(pollTime time.Duration) {
 
 	ticker := time.NewTicker(pollTime)
 	for {
@@ -53,7 +50,7 @@ func (d *simulator) polling(pollTime time.Duration) error {
 				if err == m.ErrPollGroupNotExist {
 					ticker.Stop()
 				}
-				return nil
+				return
 			}
 		case <-d.stop:
 			ticker.Stop()
@@ -62,11 +59,11 @@ func (d *simulator) polling(pollTime time.Duration) error {
 				ticker = time.NewTicker(pollTime)
 			case <-d.close:
 				d.caseStopGen(pollTime)
-				return nil
+				return
 			}
 		case <-d.close:
 			d.caseStopGen(pollTime)
-			return nil
+			return
 		}
 
 	}

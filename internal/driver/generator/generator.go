@@ -47,7 +47,7 @@ func (g *Generator) Start() error {
 func (g *Generator) Stop() error {
 	switch g.subs {
 	case 0:
-		return ErrGenAlreadyStop
+		return ErrGenAlreadyStopped
 	case 1:
 		if !u.IsChanClosable(g.done) {
 			return m.ErrCannotCloseChan

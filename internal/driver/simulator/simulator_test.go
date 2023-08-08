@@ -2,7 +2,7 @@ package driver
 
 import (
 	m "practice/internal/models"
-	str "practice/internal/storage"
+	"practice/internal/storage"
 	"testing"
 	"time"
 
@@ -32,7 +32,7 @@ func TestSimulator(t *testing.T) {
 		GenConfig: "rand:45ms:1.0:2.0",
 	}
 
-	storage, err := str.New()
+	storage, err := storage.New()
 	assert.NoError(t, err)
 
 	storage.Create(1)
@@ -125,15 +125,24 @@ func TestSimulator(t *testing.T) {
 		assert.ErrorIs(t, simulator.Run(), m.ErrAlreadyRunning)
 		assert.Equal(t, m.RUNNING, simulator.state)
 
+		time.Sleep(time.Millisecond * 50)
+
 		assert.NoError(t, simulator.Stop())
 		assert.ErrorIs(t, simulator.Stop(), m.ErrAlreadyStopped)
 		assert.Equal(t, m.STOPPED, simulator.state)
+
+		assert.NoError(t, simulator.Run())
+		assert.Equal(t, m.RUNNING, simulator.state)
 
 		assert.NoError(t, simulator.Reset())
 		assert.Equal(t, m.READY, simulator.state)
 
 		assert.NoError(t, simulator.Run())
 		assert.Equal(t, m.RUNNING, simulator.state)
+
+		_, err := simulator.TagDelete(m.DataID(3))
+		assert.NoError(t, err)
+		time.Sleep(time.Millisecond * 50)
 
 		assert.NoError(t, simulator.Close())
 		assert.ErrorIs(t, simulator.Close(), m.ErrProgramClosed)

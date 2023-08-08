@@ -51,7 +51,7 @@ func TestGenerator(t *testing.T) {
 		assert.Equal(t, uint32(0), g.subs)
 
 		err = g.Stop()
-		assert.ErrorIs(t, err, ErrGenAlreadyStop)
+		assert.ErrorIs(t, err, ErrGenAlreadyStopped)
 	})
 
 	t.Run("Value", func(t *testing.T) {

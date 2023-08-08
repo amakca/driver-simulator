@@ -38,7 +38,6 @@ func New(settings m.DriverSettings, storage m.ValueUpdater) (*simulator, error) 
 		genManager:      genManager,
 		storage:         storage,
 		start:           make(chan struct{}),
-		state:           m.READY,
 	}
 
 	if err := s.init(settings); err != nil {
@@ -67,6 +66,7 @@ func (d *simulator) init(set m.DriverSettings) error {
 		d.close = make(chan struct{})
 	}
 
+	d.state = m.READY
 	return nil
 }
 

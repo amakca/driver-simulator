@@ -36,12 +36,15 @@ func parseTags(v any) (TagSettings, error) {
 
 func parseTagsJSON(input []byte) (TagSettings, error) {
 	tagSet := &TagSettings{}
+
 	if err := json.Unmarshal(input, tagSet); err != nil {
 		return TagSettings{}, err
 	}
+
 	if tagSet.PollTime < m.MIN_POLL_TIME {
 		return TagSettings{}, m.ErrPollTimeSmall
 	}
+
 	return *tagSet, nil
 }
 

@@ -2,10 +2,8 @@ package driver
 
 import (
 	"fmt"
-	"log"
 	g "practice/internal/driver/generator"
 	m "practice/internal/models"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -33,9 +31,6 @@ func (d *simulator) TagCreate(id m.DataID, s m.Settings) (m.Undo, error) {
 	}
 
 	if err := d.createTag(id, settings); err != nil {
-		if err := d.deleteTag(id); err != nil {
-			log.Print(err)
-		}
 		return nil, err
 	}
 
@@ -61,8 +56,8 @@ func (d *simulator) TagDelete(id m.DataID) (m.Undo, error) {
 	}
 
 	if err := d.deleteTag(id); err != nil {
-		if err := d.createTag(id, deletedSettings); err != nil {
-			log.Print(err)
+		if err == g.ErrGenAlreadyStopped {
+			return undo, nil
 		}
 		return nil, err
 	}
@@ -108,6 +103,9 @@ func (d *simulator) createTag(id m.DataID, s TagSettings) error {
 	if err != nil {
 		return err
 	}
+	if err := gen.Start(); err != nil {
+		return err
+	}
 
 	d.tagsSettings[id] = s
 
@@ -117,14 +115,8 @@ func (d *simulator) createTag(id m.DataID, s TagSettings) error {
 	}
 	d.pollGroup[s.PollTime][id] = gen
 
-	if err := gen.Start(); err != nil {
-		return err
-	}
-
 	if !ok {
-		go func(pollTime time.Duration) {
-			d.polling(pollTime)
-		}(s.PollTime)
+		go d.polling(s.PollTime)
 	}
 	return nil
 }
@@ -133,17 +125,13 @@ func (d *simulator) deleteTag(id m.DataID) error {
 	for pollTime, intrnl := range d.pollGroup {
 		if gen, ok := intrnl[id]; ok {
 			delete(d.tagsSettings, id)
-
-			if err := gen.Stop(); err != nil {
-				log.Print(err)
-			}
 			delete(intrnl, id)
 
 			if len(intrnl) == 0 {
 				delete(d.pollGroup, pollTime)
 			}
 
-			return nil
+			return gen.Stop()
 		}
 	}
 

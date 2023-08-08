@@ -6,10 +6,10 @@ import (
 )
 
 var (
-	ErrInvalidSettings = errors.New("invalid settings format")
-	ErrGenTypeNotFound = errors.New("generator type not found")
-	ErrSampleRateSmall = errors.New("sample rate time is too small")
-	ErrGenAlreadyStop  = errors.New("generator already stopped")
+	ErrInvalidSettings   = errors.New("invalid settings format")
+	ErrGenTypeNotFound   = errors.New("generator type not found")
+	ErrSampleRateSmall   = errors.New("sample rate time is too small")
+	ErrGenAlreadyStopped = errors.New("generator already stopped")
 )
 
 const (
