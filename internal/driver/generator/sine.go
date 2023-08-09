@@ -2,49 +2,60 @@ package generator
 
 import (
 	"math"
+	m "practice/internal/models"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type sineSettings struct {
+type sine struct {
 	amplitude float64
 	frequency float64
 }
 
-func parseSineSettings(cfg string) (sineSettings, time.Duration, error) {
-	parts := strings.Split(cfg, delimiter)
+func parseSine(cfg string) (sine, time.Duration, error) {
+	parts := strings.Split(cfg, m.DELIMITER)
 	if len(parts) != 3 {
-		return sineSettings{}, 0, errInvalidSettings
+		return sine{}, 0, ErrInvalidSettings
 	}
 
-	settings := sineSettings{}
-	sampleRate, _ := time.ParseDuration(parts[0])
-
-	if sampleRate < maxPrescaler {
-		return sineSettings{}, 0, errPrescallerSmall
+	valuer := sine{}
+	sampleRate, err := time.ParseDuration(parts[0])
+	if err != nil {
+		return sine{}, 0, err
 	}
-	settings.amplitude, _ = strconv.ParseFloat(parts[1], 64)
-	settings.frequency, _ = strconv.ParseFloat(parts[2], 64)
 
-	return settings, sampleRate, nil
+	if sampleRate < MAX_SAMPLE_RATE {
+		return sine{}, 0, ErrSampleRateSmall
+	}
+
+	valuer.amplitude, err = strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return sine{}, 0, err
+	}
+
+	valuer.frequency, err = strconv.ParseFloat(parts[2], 64)
+	if err != nil {
+		return sine{}, 0, err
+	}
+
+	return valuer, sampleRate, nil
 }
 
 // Конструктор синус-генератора
 func NewSineGen(cfg string) (*Generator, error) {
-	settings, sampleRate, err := parseSineSettings(cfg)
+	valuer, sampleRate, err := parseSine(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Generator{
-		valuer:     &settings,
+		valuer:     &valuer,
 		sampleRate: sampleRate,
 	}, nil
 }
 
-func (s *sineSettings) value() float32 {
-	return float32(s.amplitude * math.Sin(float64(
-		time.Now().UnixNano())*2.0*math.Pi*
-		float64(s.frequency)/1e9))
+func (s *sine) value() float32 {
+	return float32(s.amplitude * math.Sin(2.0*math.Pi*s.frequency*
+		float64(time.Now().Second())))
 }

@@ -1,67 +1,62 @@
 package generator
 
 import (
+	u "practice/internal/utils"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGenerator_OneSubs(t *testing.T) {
-	g, err := NewRandGen("50ms:1.0:2.0")
+func TestGenerator(t *testing.T) {
+	g, err := NewRandGen("25ms:2.0:1.0")
 	assert.NoError(t, err)
+	assert.Equal(t, uint32(0), g.subs)
+	assert.Equal(t, float32(0), g.value)
+	assert.Equal(t, (time.Millisecond * 25), g.sampleRate)
+	expSet := &random{
+		high: 2.0,
+		low:  1.0,
+	}
+	assert.Equal(t, expSet, g.valuer)
 
-	err = g.Start()
-	assert.NoError(t, err)
+	t.Run("Start-stop", func(t *testing.T) {
+		err = g.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, uint32(1), g.subs)
+		assert.True(t, u.IsChanClosable(g.done))
 
-	time.Sleep(100 * time.Millisecond)
+		time.Sleep(time.Millisecond * 30)
+		assert.NotEqual(t, float32(1), g.value)
 
-	value := g.ValueFloat32()
+		err = g.Stop()
+		assert.NoError(t, err)
+		assert.Equal(t, uint32(0), g.subs)
+		assert.False(t, u.IsChanClosable(g.done))
+	})
 
-	assert.True(t, value >= 1.0)
-	assert.True(t, value <= 2.0)
+	t.Run("Subscription", func(t *testing.T) {
+		assert.Equal(t, uint32(0), g.subs)
 
-	err = g.Stop()
-	assert.NoError(t, err)
-	time.Sleep(100 * time.Millisecond)
-	value = g.ValueFloat32()
-	time.Sleep(100 * time.Millisecond)
-	valueAfter := g.ValueFloat32()
-	assert.Equal(t, value, valueAfter)
+		g.Start()
+		assert.Equal(t, uint32(1), g.subs)
 
-	err = g.Stop()
-	assert.ErrorIs(t, err, errGenAlreadyStop)
-}
+		g.Start()
+		assert.Equal(t, uint32(2), g.subs)
 
-func TestGenerator_TwoSubs(t *testing.T) {
-	g, err := NewRandGen("30ms:1.0:2.0")
-	assert.NoError(t, err)
+		g.Stop()
+		assert.Equal(t, uint32(1), g.subs)
 
-	err = g.Start()
-	assert.NoError(t, err)
-	err = g.Start()
-	assert.NoError(t, err)
+		g.Stop()
+		assert.Equal(t, uint32(0), g.subs)
 
-	time.Sleep(100 * time.Millisecond)
+		err = g.Stop()
+		assert.ErrorIs(t, err, ErrGenAlreadyStopped)
+	})
 
-	value := g.ValueFloat32()
-
-	assert.True(t, value >= 1.0)
-	assert.True(t, value <= 2.0)
-
-	err = g.Stop()
-	assert.NoError(t, err)
-	time.Sleep(100 * time.Millisecond)
-	value = g.ValueFloat32()
-	time.Sleep(100 * time.Millisecond)
-	valueAfter := g.ValueFloat32()
-	assert.NotEqual(t, value, valueAfter)
-
-	err = g.Stop()
-	assert.NoError(t, err)
-	time.Sleep(100 * time.Millisecond)
-	value = g.ValueFloat32()
-	time.Sleep(100 * time.Millisecond)
-	valueAfter = g.ValueFloat32()
-	assert.Equal(t, value, valueAfter)
+	t.Run("Value", func(t *testing.T) {
+		g.value = 5
+		assert.Equal(t, g.value, g.Value())
+		assert.Equal(t, []byte{0x0, 0x0, 0xa0, 0x40}, g.ValueBytes())
+	})
 }

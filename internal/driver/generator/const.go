@@ -6,17 +6,16 @@ import (
 )
 
 var (
-	errInvalidSettings = errors.New("invalid settings format")
-	errGenTypeNotFound = errors.New("generator type not found")
-	errPrescallerSmall = errors.New("prescaler is too small")
-	errGenAlreadyStop  = errors.New("generator already stopped")
+	ErrInvalidSettings   = errors.New("invalid settings format")
+	ErrGenTypeNotFound   = errors.New("generator type not found")
+	ErrSampleRateSmall   = errors.New("sample rate time is too small")
+	ErrGenAlreadyStopped = errors.New("generator already stopped")
 )
 
 const (
-	maxPrescaler time.Duration = time.Millisecond * 25
-	delimiter    string        = ":"
+	MAX_SAMPLE_RATE time.Duration = time.Millisecond * 25
 
-	sineGen = "sine"
-	sawGen  = "saw"
-	randGen = "rand"
+	SINE_GENERATOR = "sine"
+	SAW_GENERATOR  = "saw"
+	RAND_GENERATOR = "rand"
 )

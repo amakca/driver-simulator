@@ -9,94 +9,127 @@ import (
 )
 
 func TestTagStorage(t *testing.T) {
-	str, err := New()
+	storage, err := New()
 	assert.NoError(t, err)
+	assert.NotNil(t, storage.data)
 
-	// Create
 	id := m.DataID(1)
-	undo, err := str.Create(id)
-	assert.NoError(t, err)
-	assert.NotNil(t, undo)
 
-	_, err = str.Create(id)
-	assert.ErrorIs(t, err, errDataExist)
+	t.Run("Create", func(t *testing.T) {
+		undo, err := storage.Create(id)
+		assert.NoError(t, err)
+		assert.NotNil(t, undo)
+		assert.Contains(t, storage.data, id)
 
-	err = undo()
-	assert.NoError(t, err)
+		_, err = storage.Create(id)
+		assert.ErrorIs(t, err, m.ErrDataExists)
 
-	_, err = str.Read(id)
-	assert.ErrorIs(t, err, errDataNotFound)
+		assert.NoError(t, undo())
+		assert.NotContains(t, storage.data, id)
+	})
 
-	// Update
-	datapoint := m.Datapoint{Quality: m.Good}
-	undo, err = str.Update(id, datapoint)
-	assert.ErrorIs(t, err, errDataNotFound)
+	t.Run("Read", func(t *testing.T) {
+		datapoint, err := storage.Read(11)
+		assert.Equal(t, m.Datapoint{}, datapoint)
+		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
-	_, err = str.Create(id)
-	assert.NoError(t, err)
+		datapoint = m.Datapoint{
+			Value:     []byte{1},
+			Timestamp: 2,
+			Quality:   m.QUALITY_GOOD,
+		}
+		storage.data[id] = &datapoint
 
-	undo, err = str.Update(id, datapoint)
-	assert.NoError(t, err)
-	assert.NotNil(t, undo)
+		datapoint, err = storage.Read(id)
+		assert.NoError(t, err)
+		assert.Equal(t, storage.data[id], &datapoint)
+	})
 
-	err = undo()
-	assert.NoError(t, err)
+	t.Run("Update", func(t *testing.T) {
+		datapoint := &m.Datapoint{
+			Value:     []byte{1},
+			Timestamp: 2,
+			Quality:   m.QUALITY_GOOD,
+		}
 
-	read, err := str.Read(id)
-	assert.NoError(t, err)
-	assert.Equal(t, read.Quality, m.Uncertain)
+		undo, err := storage.Update(11, *datapoint)
+		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
-	// Delete
-	undo, err = str.Delete(id)
-	assert.NoError(t, err)
-	assert.NotNil(t, undo)
+		storage.data[id] = &m.Datapoint{}
 
-	_, err = str.Delete(id)
-	assert.ErrorIs(t, err, errDataNotFound)
+		undo, err = storage.Update(id, *datapoint)
+		assert.NoError(t, err)
+		assert.NotNil(t, undo)
+		assert.Equal(t, storage.data[id], datapoint)
 
-	err = undo()
-	assert.NoError(t, err)
+		assert.NoError(t, undo())
+		assert.Equal(t, storage.data[id], &m.Datapoint{})
+	})
 
-	_, err = str.Read(id)
-	assert.NoError(t, err)
+	t.Run("Delete", func(t *testing.T) {
+		_, err = storage.Delete(11)
+		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
-	// UpdateValue
-	undo, err = str.UpdateValue(id, []byte{1})
-	assert.NoError(t, err)
-	assert.NotNil(t, undo)
+		storage.data[id] = &m.Datapoint{}
 
-	err = undo()
-	assert.NoError(t, err)
+		undo, err := storage.Delete(id)
+		assert.NoError(t, err)
+		assert.NotNil(t, undo)
+		assert.NotContains(t, storage.data, id)
 
-	read, err = str.Read(id)
-	assert.Nil(t, read.Value)
+		assert.NoError(t, undo())
+		assert.Contains(t, storage.data, id)
+	})
 
-	_, err = str.UpdateValue(2, []byte{2})
-	assert.ErrorIs(t, err, errDataNotFound)
+	t.Run("UpdateValue", func(t *testing.T) {
+		_, err = storage.UpdateValue(11, []byte{2})
+		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
-	// UpdateQuality
-	undo, err = str.UpdateQuality(id, m.Bad)
-	assert.NoError(t, err)
-	assert.NotNil(t, undo)
-	read, err = str.Read(id)
-	assert.Equal(t, read.Quality, m.Bad)
+		storage.data[id] = &m.Datapoint{}
 
-	err = undo()
-	assert.NoError(t, err)
+		undo, err := storage.UpdateValue(id, []byte{1})
+		assert.NoError(t, err)
+		assert.NotNil(t, undo)
+		assert.Equal(t, []byte{1}, storage.data[id].Value)
+		assert.NotEqual(t, int64(0), storage.data[id].Timestamp)
 
-	read, err = str.Read(id)
-	assert.Equal(t, read.Quality, m.Uncertain)
+		assert.NoError(t, undo())
+		assert.Equal(t, []byte(nil), storage.data[id].Value)
+		assert.Equal(t, int64(0), storage.data[id].Timestamp)
 
-	_, err = str.UpdateQuality(2, m.Bad)
-	assert.ErrorIs(t, err, errDataNotFound)
+	})
 
-	// List
-	str.Create(m.DataID(2))
-	str.UpdateValue(m.DataID(2), []byte{2})
+	t.Run("UpdateQuality", func(t *testing.T) {
+		_, err = storage.UpdateQuality(11, m.QUALITY_BAD)
+		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
-	data := str.List()
-	assert.Equal(t, len(data), 2)
-	assert.Contains(t, data, id)
-	assert.Contains(t, data, m.DataID(2))
+		storage.data[id] = &m.Datapoint{}
+
+		undo, err := storage.UpdateQuality(id, m.QUALITY_BAD)
+		assert.NoError(t, err)
+		assert.NotNil(t, undo)
+		assert.Equal(t, m.QUALITY_BAD, storage.data[id].Quality)
+
+		assert.NoError(t, undo())
+		assert.Equal(t, m.QUALITY_UNCERTAIN, storage.data[id].Quality)
+	})
+
+	t.Run("List", func(t *testing.T) {
+		storage.data[2] = &m.Datapoint{
+			Value:     []byte{2},
+			Timestamp: 2,
+			Quality:   m.QUALITY_GOOD,
+		}
+		storage.data[3] = &m.Datapoint{
+			Value:     []byte{3},
+			Timestamp: 3,
+			Quality:   m.QUALITY_BAD,
+		}
+	})
+
+	listTags := storage.List()
+	for k, v := range storage.data {
+		assert.Equal(t, listTags[k], *v)
+	}
 
 }

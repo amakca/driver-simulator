@@ -2,129 +2,149 @@ package driver
 
 import (
 	m "practice/internal/models"
-	"time"
+	u "practice/internal/utils"
 )
 
 func (d *simulator) Run() error {
 	switch d.State() {
-	case running:
-		return errAlreadyRunning
-	case closing:
-		return errAlreadyClosed
-	case stopping:
-		d.runSignal()
-		d.state = running
-		return nil
-	case reset:
-		return errProgramNotReady
-	case ready:
-		d.runSignal()
-		d.state = running
-		for pollTime := range d.pollGroup {
-			go func(pollTime time.Duration) {
-				d.polling(pollTime)
-			}(pollTime)
+	case m.RUNNING:
+		return m.ErrAlreadyRunning
+	case m.CLOSED:
+		return m.ErrProgramClosed
+	case m.STOPPED:
+		if err := d.updateQuality(m.QUALITY_GOOD); err != nil {
+			return err
 		}
+
+		d.runSignal()
+		d.state = m.RUNNING
+
+		return nil
+	case m.READY:
+		d.runSignal()
+
+		for pollTime := range d.pollGroup {
+			if err := d.caseStartGen(pollTime); err != nil {
+				return err
+			}
+
+			go d.polling(pollTime)
+		}
+
+		if err := d.updateQuality(m.QUALITY_GOOD); err != nil {
+			d.Stop()
+			return err
+		}
+
+		d.state = m.RUNNING
+
 		return nil
 	default:
-		return errUnknownState
+		return m.ErrUnknownState
 	}
 }
 
 func (d *simulator) Stop() error {
 	switch d.State() {
-	case stopping:
-		return errAlreadyStopped
-	case closing:
-		return errAlreadyClosed
-	case ready, reset:
-		return errNotWorking
-	case running:
-		d.stopSignal()
-		d.state = stopping
-		for id := range d.tagsSettings {
-			d.str.UpdateQuality(id, m.Bad)
+	case m.STOPPED:
+		return m.ErrAlreadyStopped
+	case m.CLOSED:
+		return m.ErrProgramClosed
+	case m.READY:
+		return m.ErrNotWorking
+	case m.RUNNING:
+		if err := d.updateQuality(m.QUALITY_BAD); err != nil {
+			return err
 		}
+
+		d.stopSignal()
+		d.state = m.STOPPED
+
 		return nil
 	default:
-		return errUnknownState
+		return m.ErrUnknownState
 	}
 }
 
 func (d *simulator) Close() error {
-	if d.State() == closing {
-		return errAlreadyClosed
+	if d.State() == m.CLOSED {
+		return m.ErrProgramClosed
 	}
+
+	if err := d.updateQuality(m.QUALITY_BAD); err != nil {
+		return err
+	}
+
 	if err := d.dumpConfig(); err != nil {
 		return err
 	}
-	d.closeSignal()
 
-	d.state = closing
+	d.closeSignal()
+	d.state = m.CLOSED
 	d.shutdown()
+
 	return nil
 }
 
 func (d *simulator) Reset() error {
 	switch d.State() {
-	case closing:
-		return errAlreadyClosed
-	case reset:
-		return errNotWorking
-	case stopping, running, ready:
+	case m.STOPPED, m.RUNNING, m.READY, m.CLOSED:
+		if err := d.updateQuality(m.QUALITY_BAD); err != nil {
+			return err
+		}
+
 		d.closeSignal()
-		d.state = reset
+
 		if err := d.init(d.Settings()); err != nil {
 			return err
 		}
-		d.state = ready
+
 		return nil
 	default:
-		return errUnknownState
+		return m.ErrUnknownState
 	}
 }
 
 func (d *simulator) runSignal() {
-	if !IsChanClosable(d.close) {
-		d.close = make(chan struct{})
-	}
-	if !IsChanClosable(d.stop) {
+	if !u.IsChanClosable(d.stop) {
 		d.stop = make(chan struct{})
 	}
-	if IsChanClosable(d.start) {
+
+	if u.IsChanClosable(d.start) {
 		close(d.start)
 	}
 }
 
 func (d *simulator) stopSignal() {
-	if !IsChanClosable(d.close) {
-		d.close = make(chan struct{})
-	}
-	if !IsChanClosable(d.start) {
+	if !u.IsChanClosable(d.start) {
 		d.start = make(chan struct{})
 	}
-	if IsChanClosable(d.stop) {
+
+	if u.IsChanClosable(d.stop) {
 		close(d.stop)
 	}
 }
 
 func (d *simulator) closeSignal() {
-	if !IsChanClosable(d.start) {
+	if !u.IsChanClosable(d.start) {
 		d.start = make(chan struct{})
 	}
-	if !IsChanClosable(d.stop) {
+
+	if !u.IsChanClosable(d.stop) {
 		d.stop = make(chan struct{})
 	}
-	if IsChanClosable(d.close) {
+
+	if u.IsChanClosable(d.close) {
 		close(d.close)
 	}
 }
 
 func (d *simulator) shutdown() {
-	if IsChanClosable(d.start) {
+	if u.IsChanClosable(d.start) {
 		close(d.start)
 	}
-	if IsChanClosable(d.stop) {
+
+	if u.IsChanClosable(d.stop) {
 		close(d.stop)
 	}
 }

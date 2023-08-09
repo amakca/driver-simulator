@@ -1,14 +1,21 @@
 package driver
 
 import (
+	"fmt"
 	g "practice/internal/driver/generator"
 	m "practice/internal/models"
-	"time"
+
+	"github.com/pkg/errors"
 )
 
 func (d *simulator) TagCreate(id m.DataID, s m.Settings) (m.Undo, error) {
+	d.rwmu.Lock()
+	defer d.rwmu.Unlock()
+
 	if _, ok := d.tagsSettings[id]; ok {
-		return nil, errDataExist
+		return nil, errors.Wrap(m.ErrDataExists,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
 	settings, err := parseTags(s)
@@ -17,52 +24,67 @@ func (d *simulator) TagCreate(id m.DataID, s m.Settings) (m.Undo, error) {
 	}
 
 	undo := func() error {
-		if err := d.deleteTag(id); err != nil {
-			return err
-		}
-		return nil
+		d.rwmu.Lock()
+		defer d.rwmu.Unlock()
+
+		return d.deleteTag(id)
 	}
 
 	if err := d.createTag(id, settings); err != nil {
-		return m.Undo(undo), err
+		return nil, err
 	}
 
-	return m.Undo(undo), nil
+	return undo, nil
 }
 
 func (d *simulator) TagDelete(id m.DataID) (m.Undo, error) {
-	if _, ok := d.tagsSettings[id]; !ok {
-		return nil, errDataNotFound
+	d.rwmu.Lock()
+	defer d.rwmu.Unlock()
+
+	deletedSettings, ok := d.tagsSettings[id]
+	if !ok {
+		return nil, errors.Wrap(m.ErrDataNotFound,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
-	oldData := d.tagsSettings[id]
-
 	undo := func() error {
-		if err := d.createTag(id, oldData); err != nil {
-			return err
-		}
-		return nil
+		d.rwmu.Lock()
+		defer d.rwmu.Unlock()
+
+		return d.createTag(id, deletedSettings)
 	}
 
 	if err := d.deleteTag(id); err != nil {
-		return m.Undo(undo), err
+		if err == g.ErrGenAlreadyStopped {
+			return undo, nil
+		}
+		return nil, err
 	}
 
-	return m.Undo(undo), nil
+	return undo, nil
 }
 
 func (d *simulator) TagSetValue(id m.DataID, value []byte) error {
-	undo, err := d.str.UpdateValue(id, value)
-	if err != nil {
-		if err := undo(); err != nil {
+	d.rwmu.RLock()
+	defer d.rwmu.RUnlock()
+
+	for _, intrnl := range d.pollGroup {
+		if gen, ok := intrnl[id]; ok {
+			err := gen.SetValueBytes(value)
 			return err
 		}
-		return err
 	}
-	return nil
+	return errors.Wrap(m.ErrDataNotFound,
+		fmt.Sprint("id = ", id),
+	)
+
 }
 
 func (d *simulator) Settings() m.DriverSettings {
+	d.rwmu.RLock()
+	defer d.rwmu.RUnlock()
+
 	settings := m.DriverSettings{
 		General: &d.generalSettings,
 		Tags:    map[m.DataID]m.Formatter{},
@@ -77,27 +99,24 @@ func (d *simulator) Settings() m.DriverSettings {
 }
 
 func (d *simulator) createTag(id m.DataID, s TagSettings) error {
-	d.tagsSettings[id] = s
-
-	gen, err := d.genManager.New(s.Settings, d.generalSettings.UseGenManager)
+	gen, err := d.genManager.New(s.GenConfig, d.generalSettings.GenOptimization)
 	if err != nil {
 		return err
 	}
+	if err := gen.Start(); err != nil {
+		return err
+	}
 
-	d.rwmu.Lock()
+	d.tagsSettings[id] = s
+
 	_, ok := d.pollGroup[s.PollTime]
 	if !ok {
 		d.pollGroup[s.PollTime] = make(map[m.DataID]*g.Generator)
 	}
 	d.pollGroup[s.PollTime][id] = gen
-	d.rwmu.Unlock()
-
-	gen.Start()
 
 	if !ok {
-		go func(pollTime time.Duration) {
-			d.polling(pollTime)
-		}(s.PollTime)
+		go d.polling(s.PollTime)
 	}
 	return nil
 }
@@ -105,20 +124,22 @@ func (d *simulator) createTag(id m.DataID, s TagSettings) error {
 func (d *simulator) deleteTag(id m.DataID) error {
 	for pollTime, intrnl := range d.pollGroup {
 		if gen, ok := intrnl[id]; ok {
-			gen.Stop()
-			d.rwmu.Lock()
+			delete(d.tagsSettings, id)
 			delete(intrnl, id)
-			d.rwmu.Unlock()
-		}
 
-		if len(intrnl) == 0 {
-			d.rwmu.Lock()
-			delete(d.pollGroup, pollTime)
-			d.rwmu.Unlock()
-		}
+			if len(intrnl) == 0 {
+				delete(d.pollGroup, pollTime)
+			}
 
-		delete(d.tagsSettings, id)
-		return nil
+			return gen.Stop()
+		}
 	}
-	return errDataNotFound
+
+	return errors.Wrap(m.ErrDataNotFound,
+		fmt.Sprint("id = ", id),
+	)
+}
+
+func (d *simulator) State() uint8 {
+	return d.state
 }

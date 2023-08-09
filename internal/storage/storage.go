@@ -1,25 +1,22 @@
 package storage
 
 import (
-	"errors"
+	"fmt"
 	m "practice/internal/models"
 	"sync"
 	"time"
-)
 
-var (
-	errDataExist    = errors.New("data with id already exist")
-	errDataNotFound = errors.New("data with id not found")
+	"github.com/pkg/errors"
 )
 
 type TagStorage struct {
 	rwmu sync.RWMutex
-	data map[m.DataID]m.Datapoint
+	data map[m.DataID]*m.Datapoint
 }
 
 func New() (*TagStorage, error) {
 	return &TagStorage{
-		data: make(map[m.DataID]m.Datapoint),
+		data: make(map[m.DataID]*m.Datapoint),
 	}, nil
 }
 
@@ -28,23 +25,21 @@ func (s *TagStorage) Create(id m.DataID) (m.Undo, error) {
 	defer s.rwmu.Unlock()
 
 	if _, ok := s.data[id]; ok {
-		return nil, errDataExist
+		return nil, errors.Wrap(m.ErrDataExists,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
 	undo := func() error {
 		s.rwmu.Lock()
 		defer s.rwmu.Unlock()
 
-		if _, ok := s.data[id]; !ok {
-			return errDataNotFound
-		}
-
 		delete(s.data, id)
 		return nil
 	}
 
-	s.data[id] = m.Datapoint{
-		Quality: m.Uncertain,
+	s.data[id] = &m.Datapoint{
+		Quality: m.QUALITY_UNCERTAIN,
 	}
 
 	return undo, nil
@@ -56,10 +51,12 @@ func (s *TagStorage) Read(id m.DataID) (m.Datapoint, error) {
 
 	datapoint, ok := s.data[id]
 	if !ok {
-		return m.Datapoint{}, errDataNotFound
+		return m.Datapoint{}, errors.Wrap(m.ErrDataNotFound,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
-	return datapoint, nil
+	return *datapoint, nil
 }
 
 func (s *TagStorage) Update(id m.DataID, datapoint m.Datapoint) (m.Undo, error) {
@@ -68,7 +65,9 @@ func (s *TagStorage) Update(id m.DataID, datapoint m.Datapoint) (m.Undo, error) 
 
 	oldDatapoint, ok := s.data[id]
 	if !ok {
-		return nil, errDataNotFound
+		return nil, errors.Wrap(m.ErrDataNotFound,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
 	undo := func() error {
@@ -79,7 +78,7 @@ func (s *TagStorage) Update(id m.DataID, datapoint m.Datapoint) (m.Undo, error) 
 		return nil
 	}
 
-	s.data[id] = datapoint
+	s.data[id] = &datapoint
 
 	return undo, nil
 }
@@ -90,7 +89,9 @@ func (s *TagStorage) Delete(id m.DataID) (m.Undo, error) {
 
 	oldDatapoint, ok := s.data[id]
 	if !ok {
-		return nil, errDataNotFound
+		return nil, errors.Wrap(m.ErrDataNotFound,
+			fmt.Sprint("id = ", id),
+		)
 	}
 
 	undo := func() error {
@@ -110,31 +111,36 @@ func (s *TagStorage) List() map[m.DataID]m.Datapoint {
 	s.rwmu.Lock()
 	defer s.rwmu.Unlock()
 
-	return s.data
+	dataCopy := make(map[m.DataID]m.Datapoint)
+	for k, v := range s.data {
+		dataCopy[k] = *v
+	}
+
+	return dataCopy
 }
 
 func (s *TagStorage) UpdateValue(id m.DataID, value []byte) (m.Undo, error) {
 	s.rwmu.Lock()
 	defer s.rwmu.Unlock()
 
-	oldDatapoint, ok := s.data[id]
+	datapoint, ok := s.data[id]
 	if !ok {
-		return nil, errDataNotFound
+		return nil, errors.Wrap(m.ErrDataNotFound,
+			fmt.Sprint("id = ", id),
+		)
 	}
+	oldDatapoint := *datapoint
 
 	undo := func() error {
 		s.rwmu.Lock()
 		defer s.rwmu.Unlock()
 
-		s.data[id] = oldDatapoint
+		s.data[id] = &oldDatapoint
 		return nil
 	}
 
-	s.data[id] = m.Datapoint{
-		Value:     value,
-		Timestamp: time.Now().Unix(),
-		Quality:   m.Good,
-	}
+	s.data[id].Value = value
+	s.data[id].Timestamp = time.Now().Unix()
 
 	return undo, nil
 }
@@ -142,22 +148,21 @@ func (s *TagStorage) UpdateValue(id m.DataID, value []byte) (m.Undo, error) {
 func (s *TagStorage) UpdateQuality(id m.DataID, state m.QualityState) (m.Undo, error) {
 	datapoint, ok := s.data[id]
 	if !ok {
-		return nil, errDataNotFound
+		return nil, errors.Wrap(m.ErrDataNotFound,
+			fmt.Sprint("id = ", id),
+		)
 	}
-
 	oldQuality := datapoint.Quality
 
 	undo := func() error {
 		s.rwmu.Lock()
 		defer s.rwmu.Unlock()
 
-		datapoint.Quality = oldQuality
-		s.data[id] = datapoint
+		s.data[id].Quality = oldQuality
 		return nil
 	}
 
-	datapoint.Quality = state
-	s.data[id] = datapoint
+	s.data[id].Quality = state
 
 	return undo, nil
 }

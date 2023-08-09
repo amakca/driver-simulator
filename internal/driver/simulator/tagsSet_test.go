@@ -1,81 +1,64 @@
 package driver
 
 import (
+	m "practice/internal/models"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTagSettings_String(t *testing.T) {
-	tagSet := &TagSettings{
-		PollTime: 5 * time.Second,
-		Settings: "example",
+func TestTagsSettings(t *testing.T) {
+	tagSettings := &TagSettings{
+		PollTime:  30 * time.Millisecond,
+		GenConfig: "rand:1s:1.0:2.0",
 	}
 
-	expected := "5sexample"
-	actual := tagSet.String()
+	t.Run("String", func(t *testing.T) {
+		expected := "30ms:rand:1s:1.0:2.0"
+		actual := tagSettings.String()
+		assert.Equal(t, expected, actual)
+	})
 
-	assert.Equal(t, expected, actual)
-}
+	t.Run("BytesJSON", func(t *testing.T) {
+		expected := []byte(`{"poll-time":30000000,"generator-config":"rand:1s:1.0:2.0"}`)
+		actual, err := tagSettings.BytesJSON()
+		assert.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
 
-func TestTagSettings_BytesJSON(t *testing.T) {
-	tagSet := &TagSettings{
-		PollTime: time.Microsecond,
-		Settings: "example",
-	}
+	t.Run("parseTags", func(t *testing.T) {
+		input := "invalid_input"
+		_, err := parseTags(input)
+		assert.EqualError(t, err, m.ErrInvalidSettings.Error())
 
-	expected := []byte(`{"poll-time":1000,"settings":"example"}`)
-	actual, err := tagSet.BytesJSON()
+		input = "10ms:config"
+		_, err = parseTags(input)
+		assert.EqualError(t, err, m.ErrPollTimeSmall.Error())
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
+		input = tagSettings.String()
+		actual, err := parseTags(input)
+		assert.NoError(t, err)
+		assert.Equal(t, *tagSettings, actual)
+	})
 
-func TestParseTags_JSON(t *testing.T) {
-	input := []byte(`{"poll-time":1000,"settings":"example"}`)
+	t.Run("parseTagsJSON", func(t *testing.T) {
+		input := []byte(`{"poll-time":30000000,"generator-config":"rand:1s:1.0:2.0"}`)
+		actual, err := parseTags(input)
+		assert.NoError(t, err)
+		assert.Equal(t, *tagSettings, actual)
+	})
 
-	expected := TagSettings{
-		PollTime: time.Microsecond,
-		Settings: "example",
-	}
-	actual, err := parseTags(input)
+	t.Run("parseTagsString", func(t *testing.T) {
+		input := "30ms:rand:1s:1.0:2.0"
+		actual, err := parseTags(input)
+		assert.NoError(t, err)
+		assert.Equal(t, *tagSettings, actual)
+	})
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
-
-func TestParseTags_String(t *testing.T) {
-	input := "5s:rand:1s:1.0:2.0"
-
-	expected := TagSettings{
-		PollTime: 5 * time.Second,
-		Settings: "rand:1s:1.0:2.0",
-	}
-	actual, err := parseTags(input)
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
-
-func TestParseTags_Struct(t *testing.T) {
-	tagSet := &TagSettings{
-		PollTime: 5 * time.Second,
-		Settings: "rand:1s:1.0:2.0",
-	}
-
-	expected := *tagSet
-	actual, err := parseTags(tagSet)
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
-
-func TestParseTags_InvalidInput(t *testing.T) {
-	input := "invalid_input"
-
-	_, err := parseTags(input)
-
-	assert.Error(t, err)
-	assert.EqualError(t, err, errInvalidSettings.Error())
+	t.Run("parseTagsStruct", func(t *testing.T) {
+		actual, err := parseTags(tagSettings)
+		assert.NoError(t, err)
+		assert.Equal(t, *tagSettings, actual)
+	})
 }

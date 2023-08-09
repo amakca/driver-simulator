@@ -1,47 +1,59 @@
 package generator
 
 import (
+	m "practice/internal/models"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type sawSettings struct {
+type saw struct {
 	amplitude float64
 	frequency float64
 }
 
-func parseSawSettings(cfg string) (sawSettings, time.Duration, error) {
-	parts := strings.Split(cfg, delimiter)
+func parseSaw(cfg string) (saw, time.Duration, error) {
+	parts := strings.Split(cfg, m.DELIMITER)
 	if len(parts) != 3 {
-		return sawSettings{}, 0, errInvalidSettings
+		return saw{}, 0, ErrInvalidSettings
 	}
 
-	settings := sawSettings{}
-	sampleRate, _ := time.ParseDuration(parts[0])
-	if sampleRate < maxPrescaler {
-		return sawSettings{}, 0, errPrescallerSmall
+	valuer := saw{}
+	sampleRate, err := time.ParseDuration(parts[0])
+	if err != nil {
+		return saw{}, 0, err
 	}
-	settings.amplitude, _ = strconv.ParseFloat(parts[1], 64)
-	settings.frequency, _ = strconv.ParseFloat(parts[2], 64)
 
-	return settings, sampleRate, nil
+	if sampleRate < MAX_SAMPLE_RATE {
+		return saw{}, 0, ErrSampleRateSmall
+	}
+	valuer.amplitude, err = strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return saw{}, 0, err
+	}
+
+	valuer.frequency, err = strconv.ParseFloat(parts[2], 64)
+	if err != nil {
+		return saw{}, 0, err
+	}
+
+	return valuer, sampleRate, nil
 }
 
 // Конструктор пила-генератора
 func NewSawGen(cfg string) (*Generator, error) {
-	settings, sampleRate, err := parseSawSettings(cfg)
+	valuer, sampleRate, err := parseSaw(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Generator{
-		valuer:     &settings,
+		valuer:     &valuer,
 		sampleRate: sampleRate,
 	}, nil
 }
 
-func (s *sawSettings) value() float32 {
+func (s *saw) value() float32 {
 	return float32(s.amplitude*(2*s.frequency*
 		float64(time.Now().Second())) - s.amplitude)
 }

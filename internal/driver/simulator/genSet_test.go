@@ -1,90 +1,64 @@
 package driver
 
 import (
+	m "practice/internal/models"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGeneralSettings_String(t *testing.T) {
-	genSet := &GeneralSettings{
-		MaxLiveTime:   time.Minute,
-		UseGenManager: true,
+func TestGeneralSettings(t *testing.T) {
+	generalSettings := &GeneralSettings{
+		ProgramLiveTime: time.Microsecond,
+		GenOptimization: true,
 	}
 
-	expected := "1m0s true"
-	actual := genSet.String()
+	t.Run("String", func(t *testing.T) {
+		expected := "1µs:true"
+		actual := generalSettings.String()
+		assert.Equal(t, expected, actual)
+	})
 
-	assert.Equal(t, expected, actual)
-}
+	t.Run("BytesJSON", func(t *testing.T) {
+		expected := []byte(`{"program-live-time":1000,"use-generator-optimization":true}`)
+		actual, err := generalSettings.BytesJSON()
+		assert.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
 
-func TestGeneralSettings_BytesJSON(t *testing.T) {
-	genSet := &GeneralSettings{
-		MaxLiveTime:   time.Microsecond,
-		UseGenManager: true,
-	}
+	t.Run("parseGeneral", func(t *testing.T) {
+		input := "invalid_input"
+		_, err := parseGeneral(input)
+		assert.EqualError(t, err, m.ErrInvalidSettings.Error())
 
-	expected := []byte(`{"max-live-time":1000,"flag-generator-manager":true}`)
-	actual, err := genSet.BytesJSON()
+		input = "2h:true"
+		_, err = parseGeneral(input)
+		assert.EqualError(t, err, m.ErrLiveTimeLong.Error())
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
+		input = generalSettings.String()
+		actual, err := parseGeneral(input)
+		assert.NoError(t, err)
+		assert.Equal(t, *generalSettings, actual)
+	})
 
-func TestParseGeneral_JSON(t *testing.T) {
-	input := []byte(`{"max-live-time":1000,"flag-generator-manager":true}`)
+	t.Run("parseGeneralJSON", func(t *testing.T) {
+		input := []byte(`{"program-live-time":1000,"use-generator-optimization":true}`)
+		actual, err := parseGeneral(input)
+		assert.NoError(t, err)
+		assert.Equal(t, *generalSettings, actual)
+	})
 
-	expected := GeneralSettings{
-		MaxLiveTime:   time.Microsecond,
-		UseGenManager: true,
-	}
-	actual, err := parseGeneral(input)
+	t.Run("parseGeneralString", func(t *testing.T) {
+		input := "1µs:true"
+		actual, err := parseGeneral(input)
+		assert.NoError(t, err)
+		assert.Equal(t, *generalSettings, actual)
+	})
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
-
-func TestParseGeneral_String(t *testing.T) {
-	input := "1ms:true"
-
-	expected := GeneralSettings{
-		MaxLiveTime:   time.Millisecond,
-		UseGenManager: true,
-	}
-	actual, err := parseGeneral(input)
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
-
-func TestParseGeneral_Struct(t *testing.T) {
-	genSet := &GeneralSettings{
-		MaxLiveTime:   time.Minute,
-		UseGenManager: true,
-	}
-
-	expected := *genSet
-	actual, err := parseGeneral(genSet)
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-}
-
-func TestParseGeneral_InvalidInput(t *testing.T) {
-	input := "invalid_input"
-
-	_, err := parseGeneral(input)
-
-	assert.Error(t, err)
-	assert.EqualError(t, err, errInvalidSettings.Error())
-}
-
-func TestParseGeneral_LongLiveTime(t *testing.T) {
-	input := "2h:true"
-
-	_, err := parseGeneral(input)
-
-	assert.Error(t, err, "An error should occur for long live time")
-	assert.EqualError(t, err, errLiveTimeLong.Error(), "Error should match")
+	t.Run("parseGeneralStruct", func(t *testing.T) {
+		actual, err := parseGeneral(generalSettings)
+		assert.NoError(t, err)
+		assert.Equal(t, *generalSettings, actual)
+	})
 }

@@ -1,4 +1,4 @@
-package driver
+package utils
 
 func IsChanClosable(ch chan struct{}) bool {
 	if ch == nil {
@@ -6,10 +6,7 @@ func IsChanClosable(ch chan struct{}) bool {
 	}
 	select {
 	case _, ok := <-ch:
-		if ok {
-			return true
-		}
-		return false
+		return ok
 	default:
 		return true
 	}

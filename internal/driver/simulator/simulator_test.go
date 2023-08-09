@@ -1,290 +1,154 @@
 package driver
 
 import (
-	"fmt"
 	m "practice/internal/models"
-	str "practice/internal/storage"
+	"practice/internal/storage"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSimulator_NormalWorking(t *testing.T) {
-	gensettings := GeneralSettings{
-		MaxLiveTime:   time.Minute * 2,
-		UseGenManager: false,
+func TestSimulator(t *testing.T) {
+	generalSettings := GeneralSettings{
+		ProgramLiveTime: time.Hour * 5,
+		GenOptimization: true,
 	}
 
-	set := m.DriverSettings{
-		General: &gensettings,
+	driverSettings := m.DriverSettings{
+		General: &generalSettings,
 		Tags:    map[m.DataID]m.Formatter{},
 	}
-	set.Tags[m.DataID(1)] = &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:2.0",
+	driverSettings.Tags[m.DataID(1)] = &TagSettings{
+		PollTime:  30 * time.Millisecond,
+		GenConfig: "rand:45ms:1.0:2.0",
 	}
-	set.Tags[m.DataID(2)] = &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:2.0",
+	driverSettings.Tags[m.DataID(2)] = &TagSettings{
+		PollTime:  30 * time.Millisecond,
+		GenConfig: "rand:35ms:1.0:3.0",
+	}
+	driverSettings.Tags[m.DataID(3)] = &TagSettings{
+		PollTime:  35 * time.Millisecond,
+		GenConfig: "rand:45ms:1.0:2.0",
 	}
 
-	settings3 := &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:3.0",
-	}
-
-	str, _ := str.New()
-	str.Create(1)
-	str.Create(2)
-
-	sim, err := New(set, str)
-	assert.NoError(t, err)
-	assert.NotNil(t, sim)
-
-	err = sim.Run()
-	assert.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
-
-	str.Create(3)
-	undo, err := sim.TagCreate(3, settings3)
-	assert.NoError(t, err)
-	err = undo()
-	assert.NoError(t, err)
-	_, err = sim.TagCreate(3, settings3)
+	storage, err := storage.New()
 	assert.NoError(t, err)
 
-	err = sim.TagSetValue(3, []byte{1})
+	storage.Create(1)
+	storage.Create(2)
+	storage.Create(3)
+
+	simulator, err := New(driverSettings, storage)
+	assert.ErrorIs(t, err, m.ErrLiveTimeLong)
+
+	generalSettings.ProgramLiveTime = time.Minute * 5
+	simulator, err = New(driverSettings, storage)
 	assert.NoError(t, err)
 
-	fmt.Println("-----Running-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+	t.Run("New", func(t *testing.T) {
+		assert.NotNil(t, simulator.pollGroup)
+		assert.NotNil(t, simulator.genManager)
+		assert.NotNil(t, simulator.start)
+		assert.Equal(t, m.READY, simulator.state)
+		assert.Equal(t, generalSettings, simulator.generalSettings)
+		assert.Equal(t, storage, simulator.storage)
 
-	undo, err = sim.TagDelete(3)
-	fmt.Println("----Delete id3----")
-	assert.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		for k := range driverSettings.Tags {
+			dr := driverSettings.Tags[k]
+			sim := simulator.tagsSettings[k]
+			assert.Equal(t, *dr.(*TagSettings), sim)
+		}
 
-	fmt.Println("-----Undo id3-----")
-	err = undo()
-	assert.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		assert.Equal(t, simulator.pollGroup[30*time.Millisecond][1],
+			simulator.pollGroup[35*time.Millisecond][3],
+		)
+		assert.NotEqual(t, simulator.pollGroup[30*time.Millisecond][1],
+			simulator.pollGroup[30*time.Millisecond][2],
+		)
+	})
 
-	err = sim.Stop()
-	assert.NoError(t, err)
-	fmt.Println("-----Stopped-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+	t.Run("TagCreate", func(t *testing.T) {
+		storage.Create(4)
+		settings := &TagSettings{
+			PollTime:  30 * time.Millisecond,
+			GenConfig: "rand:30ms:1.0:3.0",
+		}
 
-	err = sim.Run()
-	assert.NoError(t, err)
-	fmt.Println("-----Running-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		_, err = simulator.TagCreate(m.DataID(2), driverSettings.Tags[m.DataID(2)])
+		assert.ErrorIs(t, err, m.ErrDataExists)
 
-	err = sim.Reset()
-	assert.NoError(t, err)
-	fmt.Println("------Reset------")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		undo, err := simulator.TagCreate(m.DataID(4), settings)
+		assert.NoError(t, err)
+		assert.Contains(t, simulator.tagsSettings, m.DataID(4))
+		assert.Contains(t, simulator.pollGroup[settings.PollTime], m.DataID(4))
 
-	err = sim.Run()
-	assert.NoError(t, err)
-	fmt.Println("-----Running-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		assert.NoError(t, undo())
+		assert.NotContains(t, simulator.tagsSettings, m.DataID(4))
+		assert.NotContains(t, simulator.pollGroup[settings.PollTime], m.DataID(4))
+	})
 
-	err = sim.Close()
-	assert.NoError(t, err)
-	fmt.Println("-----Closing-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
-}
+	t.Run("TagDelete", func(t *testing.T) {
+		_, err = simulator.TagDelete(m.DataID(4))
+		assert.ErrorIs(t, err, m.ErrDataNotFound)
 
-func TestSimulator_NormalWorkingWithManager(t *testing.T) {
-	gensettings := GeneralSettings{
-		MaxLiveTime:   time.Minute * 2,
-		UseGenManager: true,
-	}
+		undo, err := simulator.TagDelete(m.DataID(2))
+		assert.NoError(t, err)
+		assert.NotContains(t, simulator.tagsSettings, m.DataID(2))
+		assert.NotContains(t, simulator.pollGroup[30*time.Millisecond], m.DataID(2))
 
-	set := m.DriverSettings{
-		General: &gensettings,
-		Tags:    map[m.DataID]m.Formatter{},
-	}
-	set.Tags[m.DataID(1)] = &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:3.0",
-	}
-	set.Tags[m.DataID(2)] = &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:2.0",
-	}
+		assert.NoError(t, undo())
+		assert.Contains(t, simulator.tagsSettings, m.DataID(2))
+		assert.Contains(t, simulator.pollGroup[30*time.Millisecond], m.DataID(2))
 
-	str, _ := str.New()
-	str.Create(1)
-	str.Create(2)
+	})
 
-	sim, err := New(set, str)
-	assert.NoError(t, err)
-	assert.NotNil(t, sim)
+	t.Run("TagSetValue", func(t *testing.T) {
+		assert.NoError(t, simulator.TagSetValue(2, []byte{0, 0, 0, 40}))
+		assert.Equal(t, []byte{0, 0, 0, 40},
+			simulator.pollGroup[30*time.Millisecond][2].ValueBytes(),
+		)
 
-	err = sim.Run()
-	assert.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
+		assert.ErrorIs(t, simulator.TagSetValue(5, []byte{0, 0, 0, 40}),
+			m.ErrDataNotFound)
+	})
 
-	settings3 := &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:3.0",
-	}
-	str.Create(3)
-	_, err = sim.TagCreate(3, settings3)
-	assert.NoError(t, err)
+	t.Run("Settings", func(t *testing.T) {
+		listSettings := simulator.Settings()
+		assert.Equal(t, driverSettings, listSettings)
+	})
 
-	settings4 := &TagSettings{
-		PollTime: 30 * time.Millisecond,
-		Settings: "rand:25ms:1.0:4.0",
-	}
-	str.Create(4)
-	_, err = sim.TagCreate(4, settings4)
-	assert.NoError(t, err)
+	t.Run("Service", func(t *testing.T) {
+		assert.ErrorIs(t, simulator.Stop(), m.ErrNotWorking)
 
-	fmt.Println("-----Running-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		assert.NoError(t, simulator.Run())
+		assert.ErrorIs(t, simulator.Run(), m.ErrAlreadyRunning)
+		assert.Equal(t, m.RUNNING, simulator.state)
 
-	undo, err := sim.TagDelete(3)
-	fmt.Println("----Delete id3----")
-	assert.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		time.Sleep(time.Millisecond * 50)
 
-	fmt.Println("-----Undo id3-----")
-	err = undo()
-	assert.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		assert.NoError(t, simulator.Stop())
+		assert.ErrorIs(t, simulator.Stop(), m.ErrAlreadyStopped)
+		assert.Equal(t, m.STOPPED, simulator.state)
 
-	err = sim.Stop()
-	assert.NoError(t, err)
-	fmt.Println("-----Stopped-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		assert.NoError(t, simulator.Run())
+		assert.Equal(t, m.RUNNING, simulator.state)
 
-	err = sim.Run()
-	assert.NoError(t, err)
-	fmt.Println("-----Running-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		assert.NoError(t, simulator.Reset())
+		assert.Equal(t, m.READY, simulator.state)
 
-	err = sim.Reset()
-	assert.NoError(t, err)
-	fmt.Println("------Reset------")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		assert.NoError(t, simulator.Run())
+		assert.Equal(t, m.RUNNING, simulator.state)
 
-	err = sim.Run()
-	assert.NoError(t, err)
-	fmt.Println("-----Running-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
+		_, err := simulator.TagDelete(m.DataID(3))
+		assert.NoError(t, err)
+		time.Sleep(time.Millisecond * 50)
 
-	err = sim.Close()
-	assert.NoError(t, err)
-	fmt.Println("-----Closing-----")
-	time.Sleep(50 * time.Millisecond)
-	for k, v := range str.List() {
-		fmt.Println(k, v.Value)
-	}
-}
+		assert.NoError(t, simulator.Close())
+		assert.ErrorIs(t, simulator.Close(), m.ErrProgramClosed)
+		assert.ErrorIs(t, simulator.Stop(), m.ErrProgramClosed)
+		assert.ErrorIs(t, simulator.Run(), m.ErrProgramClosed)
+		assert.Equal(t, m.CLOSED, simulator.state)
+	})
 
-func TestSimulator_ErrorWorking(t *testing.T) {
-	gensettings := GeneralSettings{
-		MaxLiveTime:   time.Hour * 5,
-		UseGenManager: true,
-	}
-
-	set := m.DriverSettings{
-		General: &gensettings,
-		Tags:    map[m.DataID]m.Formatter{},
-	}
-	set.Tags[m.DataID(1)] = &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:3.0",
-	}
-	set.Tags[m.DataID(2)] = &TagSettings{
-		PollTime: 25 * time.Millisecond,
-		Settings: "rand:25ms:1.0:2.0",
-	}
-
-	str, _ := str.New()
-	str.Create(1)
-	str.Create(2)
-
-	sim, err := New(set, str)
-	assert.ErrorIs(t, err, errLiveTimeLong)
-
-	gensettings.MaxLiveTime = time.Minute * 5
-	sim, err = New(set, str)
-	assert.NoError(t, err)
-
-	err = sim.Run()
-	assert.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
-
-	_, err = sim.TagCreate(2, set.Tags[2])
-	assert.ErrorIs(t, err, errDataExist)
-
-	_, err = sim.TagDelete(3)
-	assert.ErrorIs(t, err, errDataNotFound)
-
-	err = sim.Run()
-	assert.ErrorIs(t, err, errAlreadyRunning)
-
-	sim.Stop()
-	err = sim.Stop()
-	assert.ErrorIs(t, err, errAlreadyStopped)
-
-	sim.Reset()
-	err = sim.Stop()
-	assert.ErrorIs(t, err, errNotWorking)
-
-	sim.Close()
-	err = sim.Close()
-	assert.ErrorIs(t, err, errAlreadyClosed)
-
-	err = sim.Run()
-	assert.ErrorIs(t, err, errAlreadyClosed)
 }

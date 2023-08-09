@@ -5,42 +5,41 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestParseRandSettings(t *testing.T) {
 	tests := []struct {
 		name       string
 		input      string
-		want       randSettings
+		want       random
 		wantSample time.Duration
 		wantErr    bool
 	}{
 		{
 			name:       "valid",
 			input:      "1s:1.0:2.0",
-			want:       randSettings{1.0, 2.0},
+			want:       random{1.0, 2.0},
 			wantSample: 1 * time.Second,
 			wantErr:    false,
 		},
 		{
 			name:       "not enough parts",
 			input:      "50ms:1.0",
-			want:       randSettings{},
+			want:       random{},
 			wantSample: 0 * time.Second,
 			wantErr:    true,
 		},
 		{
 			name:       "sampleRate too small",
 			input:      "1ms:1.0:2.0",
-			want:       randSettings{},
+			want:       random{},
 			wantSample: 0 * time.Second,
 			wantErr:    true,
 		},
 		{
 			name:       "invalid delimiter",
 			input:      "1s;1.0;2.0",
-			want:       randSettings{},
+			want:       random{},
 			wantSample: 0 * time.Second,
 			wantErr:    true,
 		},
@@ -48,14 +47,14 @@ func TestParseRandSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotSample, err := parseRandSettings(tt.input)
+			got, gotSample, err := parseRandom(tt.input)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantSample, gotSample)
 			if tt.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -65,13 +64,13 @@ func TestNewRandGen(t *testing.T) {
 	tests := []struct {
 		name         string
 		input        string
-		wantSettings randSettings
+		wantSettings random
 		wantErr      bool
 	}{
 		{
 			name:  "valid",
 			input: "1s:1.0:2.0",
-			wantSettings: randSettings{
+			wantSettings: random{
 				low:  1.0,
 				high: 2.0,
 			},
@@ -80,7 +79,7 @@ func TestNewRandGen(t *testing.T) {
 		{
 			name:         "invalid input",
 			input:        "foo:2.0:1s",
-			wantSettings: randSettings{},
+			wantSettings: random{},
 			wantErr:      true,
 		},
 	}
@@ -89,16 +88,16 @@ func TestNewRandGen(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewRandGen(tt.input)
 			if tt.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestValue(t *testing.T) {
-	settings := randSettings{
+	settings := random{
 		low:  1.0,
 		high: 2.0,
 	}
