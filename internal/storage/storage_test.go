@@ -19,13 +19,13 @@ func TestTagStorage(t *testing.T) {
 		undo, err := storage.Create(id)
 		assert.NoError(t, err)
 		assert.NotNil(t, undo)
-		assert.NotNil(t, storage.data[id])
+		assert.Contains(t, storage.data, id)
 
 		_, err = storage.Create(id)
 		assert.ErrorIs(t, err, m.ErrDataExists)
 
 		assert.NoError(t, undo())
-		assert.Nil(t, storage.data[id])
+		assert.NotContains(t, storage.data, id)
 	})
 
 	t.Run("Read", func(t *testing.T) {
@@ -75,10 +75,10 @@ func TestTagStorage(t *testing.T) {
 		undo, err := storage.Delete(id)
 		assert.NoError(t, err)
 		assert.NotNil(t, undo)
-		assert.Nil(t, storage.data[id])
+		assert.NotContains(t, storage.data, id)
 
 		assert.NoError(t, undo())
-		assert.NotNil(t, storage.data[id])
+		assert.Contains(t, storage.data, id)
 	})
 
 	t.Run("UpdateValue", func(t *testing.T) {

@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"log"
 	g "practice/internal/driver/generator"
 	m "practice/internal/models"
 	"time"
@@ -91,7 +92,7 @@ func (d *simulator) caseStartGen(pollTime time.Duration) error {
 	return nil
 }
 
-func (d *simulator) updateValue(pollTime time.Duration) error {
+func (d *simulator) updateValue(pollTime time.Duration) (err error) {
 	d.rwmu.RLock()
 	defer d.rwmu.RUnlock()
 
@@ -101,11 +102,40 @@ func (d *simulator) updateValue(pollTime time.Duration) error {
 
 	for id, gen := range d.pollGroup[pollTime] {
 		val := gen.ValueBytes()
-		_, err := d.storage.UpdateValue(m.DataID(id), val)
-		if err != nil {
-			return err
+
+		undo, errUpdate := d.storage.UpdateValue(m.DataID(id), val)
+		if errUpdate != nil {
+			return errUpdate
 		}
+
+		defer func() {
+			if err != nil {
+				if errUndo := undo(); errUndo != nil {
+					log.Print(errUndo)
+				}
+			}
+		}()
 	}
 
+	return nil
+}
+
+func (d *simulator) updateQuality(quality m.QualityState) (err error) {
+
+	for id := range d.tagsSettings {
+		undo, errUpdate := d.storage.UpdateQuality(id, quality)
+		if errUpdate != nil {
+			return errUpdate
+		}
+
+		defer func() {
+			if err != nil {
+				if errUndo := undo(); errUndo != nil {
+					log.Print(errUndo)
+				}
+			}
+		}()
+
+	}
 	return nil
 }
